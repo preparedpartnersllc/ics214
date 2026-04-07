@@ -13,7 +13,6 @@ export default async function DashboardPage() {
     .from('profiles').select('*').eq('id', user.id).single()
   if (!profile) redirect('/login')
 
-  // Get events this user is assigned to
   const { data: myAssignments } = await supabase
     .from('assignments')
     .select('operational_period_id')
@@ -68,35 +67,53 @@ export default async function DashboardPage() {
         <p className="text-zinc-500 text-sm mt-0.5 capitalize">{profile.role}</p>
       </div>
 
-      {/* Quick nav */}
+      {/* Nav grid — new arrangement:
+          Row 1: Profile | Staff Review
+          Row 2: New Event | Events        */}
       <div className="grid grid-cols-2 gap-3 mb-8">
-        <Link href="/events"
-          className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 hover:border-zinc-700 transition-colors">
-          <p className="text-zinc-100 font-medium text-sm">Events</p>
-          <p className="text-zinc-500 text-xs mt-0.5">All incidents</p>
-        </Link>
 
+        {/* Row 1 left: Profile */}
         <Link href="/profile"
           className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 hover:border-zinc-700 transition-colors">
           <p className="text-zinc-100 font-medium text-sm">Profile</p>
           <p className="text-zinc-500 text-xs mt-0.5">Settings & timezone</p>
         </Link>
 
-        {(profile.role === 'admin' || profile.role === 'supervisor') && (
+        {/* Row 1 right: Staff Review (admin/supervisor only, else Events) */}
+        {(profile.role === 'admin' || profile.role === 'supervisor') ? (
           <Link href="/staff"
             className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 hover:border-zinc-700 transition-colors">
             <p className="text-zinc-100 font-medium text-sm">Staff Review</p>
             <p className="text-zinc-500 text-xs mt-0.5">Review activity logs</p>
           </Link>
+        ) : (
+          <Link href="/events"
+            className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 hover:border-zinc-700 transition-colors">
+            <p className="text-zinc-100 font-medium text-sm">Events</p>
+            <p className="text-zinc-500 text-xs mt-0.5">All incidents</p>
+          </Link>
         )}
 
-        {profile.role === 'admin' && (
+        {/* Row 2 left: New Event (admin only, else empty placeholder) */}
+        {profile.role === 'admin' ? (
           <Link href="/events/new"
             className="bg-orange-950/30 border border-orange-900/50 rounded-xl p-4 hover:border-orange-700 transition-colors">
             <p className="text-orange-300 font-medium text-sm">+ New Event</p>
             <p className="text-orange-600/70 text-xs mt-0.5">Create incident</p>
           </Link>
+        ) : (
+          <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-xl p-4">
+            <p className="text-zinc-600 font-medium text-sm">My 214s</p>
+            <p className="text-zinc-700 text-xs mt-0.5">Activity logs</p>
+          </div>
         )}
+
+        {/* Row 2 right: Events */}
+        <Link href="/events"
+          className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 hover:border-zinc-700 transition-colors">
+          <p className="text-zinc-100 font-medium text-sm">Events</p>
+          <p className="text-zinc-500 text-xs mt-0.5">All incidents</p>
+        </Link>
       </div>
 
       {/* Member: my active events */}

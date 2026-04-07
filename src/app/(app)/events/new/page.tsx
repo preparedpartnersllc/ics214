@@ -4,20 +4,29 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { createClient } from '@/lib/supabase/client'
-import { createEventSchema, type CreateEventInput } from '@/lib/validations'
 import { FormField } from '@/components/ui/FormField'
 import { Button } from '@/components/ui/Button'
 import Link from 'next/link'
+
+const schema = z.object({
+  name: z.string().min(2, 'Event name is required'),
+  incident_number: z.string().optional(),
+  location: z.string().optional(),
+  summary: z.string().optional(),
+})
+
+type Input = z.infer<typeof schema>
 
 export default function NewEventPage() {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } =
-    useForm<CreateEventInput>({ resolver: zodResolver(createEventSchema) })
+    useForm<Input>({ resolver: zodResolver(schema) })
 
-  async function onSubmit(data: CreateEventInput) {
+  async function onSubmit(data: Input) {
     setError(null)
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -29,6 +38,7 @@ export default function NewEventPage() {
         name: data.name,
         incident_number: data.incident_number || null,
         location: data.location || null,
+        summary: data.summary || null,
         created_by: user.id,
       })
       .select()
@@ -66,6 +76,15 @@ export default function NewEventPage() {
                 {...register('location')} />
             </FormField>
           </div>
+
+          <FormField label="Event Summary" error={errors.summary?.message}>
+            <textarea
+              rows={3}
+              className="input resize-none"
+              placeholder="Brief description of the incident or event..."
+              {...register('summary')}
+            />
+          </FormField>
         </div>
 
         {error && <p className="text-sm text-red-400">{error}</p>}

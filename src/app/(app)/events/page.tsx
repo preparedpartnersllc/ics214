@@ -22,7 +22,6 @@ export default async function EventsPage() {
       .order('created_at', { ascending: false })
     events = data ?? []
   } else {
-    // Members only see events they are assigned to
     const { data: assignments } = await supabase
       .from('assignments')
       .select('operational_period_id')
@@ -49,6 +48,16 @@ export default async function EventsPage() {
     }
   }
 
+  // Get all operational periods for these events
+  const eventIds = events.map((e: any) => e.id)
+  const { data: allOps } = eventIds.length > 0
+    ? await supabase
+        .from('operational_periods')
+        .select('*')
+        .in('event_id', eventIds)
+        .order('period_number', { ascending: true })
+    : { data: [] }
+
   return (
     <div className="min-h-screen bg-zinc-950 px-4 py-8 max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-6">
@@ -66,7 +75,7 @@ export default async function EventsPage() {
         )}
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-4">
         {events.length === 0 && (
           <div className="bg-zinc-900 border border-zinc-800 border-dashed rounded-xl p-12 text-center">
             <p className="text-zinc-600 text-sm">
@@ -81,15 +90,18 @@ export default async function EventsPage() {
           </div>
         )}
 
-        {events.map((event: any) => (
-          <Link
-            key={event.id}
-            href={`/events/${event.id}`}
-            className="block bg-zinc-900 border border-zinc-800 rounded-xl p-4 hover:border-zinc-700 transition-colors"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 mb-1">
+        {events.map((event: any) => {
+          const eventOps = (allOps ?? []).filter((op: any) => op.event_id === event.id)
+
+          return (
+            <Link
+              key={event.id}
+              href={`/events/${event.id}`}
+              className="block bg-zinc-900 border border-zinc-800 rounded-xl p-5 hover:border-zinc-700 transition-colors"
+            >
+              {/* Status + incident number */}
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
                   <span className={`text-xs font-mono px-2 py-0.5 rounded border ${
                     event.status === 'active'
                       ? 'bg-green-900/50 text-green-400 border-green-800'
@@ -105,17 +117,68 @@ export default async function EventsPage() {
                     </span>
                   )}
                 </div>
-                <p className="text-zinc-100 font-medium truncate">{event.name}</p>
-                {event.location && (
-                  <p className="text-sm text-zinc-500 mt-0.5">{event.location}</p>
-                )}
+                {/* Large date */}
+                <p className="text-base font-mono font-medium text-zinc-300">
+                  {new Date(event.created_at).toLocaleDateString('en-US', {
+                    month: 'short', day: 'numeric', year: 'numeric'
+                  })}
+                </p>
               </div>
-              <span className="text-xs text-zinc-600 flex-shrink-0">
-                {new Date(event.created_at).toLocaleDateString()}
-              </span>
-            </div>
-          </Link>
-        ))}
+
+              {/* Event name */}
+              <p className="text-lg font-semibold text-zinc-100 mb-1">{event.name}</p>
+
+              {/* Location */}
+              {event.location && (
+                <p className="text-sm text-zinc-500 mb-2">{event.location}</p>
+              )}
+
+              {/* Summary */}
+              {event.summary && (
+                <p className="text-sm text-zinc-400 mb-3 leading-relaxed border-l-2 border-zinc-700 pl-3">
+                  {event.summary}
+                </p>
+              )}
+
+              {/* Operational periods */}
+              {eventOps.length > 0 && (
+                <div className="border-t border-zinc-800 pt-3 mt-2">
+                  <p className="text-xs text-zinc-600 font-mono uppercase tracking-wider mb-2">
+                    Operational Periods ({eventOps.length})
+                  </p>
+                  <div className="space-y-1">
+                    {eventOps.map((op: any) => (
+                      <div key={op.id}
+                        className="flex items-center justify-between text-xs">
+                        <span className="font-mono text-zinc-400">
+                          OP {op.period_number}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-zinc-500 font-mono">
+                            {new Date(op.op_period_start).toLocaleDateString('en-US', {
+                              month: 'short', day: 'numeric'
+                            })} {new Date(op.op_period_start).toLocaleTimeString('en-US', {
+                              hour: '2-digit', minute: '2-digit', hour12: false
+                            })} — {new Date(op.op_period_end).toLocaleTimeString('en-US', {
+                              hour: '2-digit', minute: '2-digit', hour12: false
+                            })}
+                          </span>
+                          <span className={`px-1.5 py-0.5 rounded font-mono ${
+                            op.status === 'active'
+                              ? 'bg-green-900/40 text-green-500'
+                              : 'bg-zinc-800 text-zinc-500'
+                          }`}>
+                            {op.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </Link>
+          )
+        })}
       </div>
 
       <div className="mt-6">

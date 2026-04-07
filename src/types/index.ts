@@ -1,5 +1,6 @@
 export type UserRole = 'admin' | 'supervisor' | 'member'
 export type EventStatus = 'active' | 'closed' | 'archived'
+export type OPStatus = 'active' | 'closed'
 export type DivisionType = 'division' | 'branch'
 
 export interface Profile {
@@ -20,6 +21,7 @@ export interface Event {
   name: string
   incident_number: string | null
   location: string | null
+  summary: string | null
   status: EventStatus
   created_by: string
   created_at: string
@@ -32,6 +34,7 @@ export interface OperationalPeriod {
   period_number: number
   op_period_start: string
   op_period_end: string
+  status: OPStatus
   created_by: string
   created_at: string
 }
@@ -47,7 +50,7 @@ export interface Division {
 export interface Group {
   id: string
   operational_period_id: string
-  division_id: string
+  division_id: string | null
   name: string
   created_at: string
 }
@@ -55,7 +58,7 @@ export interface Group {
 export interface Team {
   id: string
   operational_period_id: string
-  group_id: string
+  group_id: string | null
   name: string
   created_at: string
 }
