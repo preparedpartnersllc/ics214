@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { formatDate, formatICSTime } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,7 +13,7 @@ export default async function DashboardPage() {
     .from('profiles').select('*').eq('id', user.id).single()
   if (!profile) redirect('/login')
 
-  // Get events this user is assigned to via assignments → operational_periods → events
+  // Get events this user is assigned to
   const { data: myAssignments } = await supabase
     .from('assignments')
     .select('operational_period_id')
@@ -42,7 +41,6 @@ export default async function DashboardPage() {
     }
   }
 
-  // Admins also see all active events
   let allEvents: any[] = []
   if (profile.role === 'admin' || profile.role === 'supervisor') {
     const { data: events } = await supabase
@@ -77,6 +75,13 @@ export default async function DashboardPage() {
           <p className="text-zinc-100 font-medium text-sm">Events</p>
           <p className="text-zinc-500 text-xs mt-0.5">All incidents</p>
         </Link>
+
+        <Link href="/profile"
+          className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 hover:border-zinc-700 transition-colors">
+          <p className="text-zinc-100 font-medium text-sm">Profile</p>
+          <p className="text-zinc-500 text-xs mt-0.5">Settings & timezone</p>
+        </Link>
+
         {(profile.role === 'admin' || profile.role === 'supervisor') && (
           <Link href="/staff"
             className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 hover:border-zinc-700 transition-colors">
@@ -84,6 +89,7 @@ export default async function DashboardPage() {
             <p className="text-zinc-500 text-xs mt-0.5">Review activity logs</p>
           </Link>
         )}
+
         {profile.role === 'admin' && (
           <Link href="/events/new"
             className="bg-orange-950/30 border border-orange-900/50 rounded-xl p-4 hover:border-orange-700 transition-colors">
@@ -93,7 +99,7 @@ export default async function DashboardPage() {
         )}
       </div>
 
-      {/* My assigned events */}
+      {/* Member: my active events */}
       {profile.role === 'member' && (
         <div>
           <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider mb-3">
@@ -117,7 +123,7 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* Admin/supervisor event list */}
+      {/* Admin/supervisor: recent events */}
       {(profile.role === 'admin' || profile.role === 'supervisor') && (
         <div>
           <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider mb-3">
@@ -132,6 +138,8 @@ export default async function DashboardPage() {
                   <span className={`text-xs font-mono px-2 py-0.5 rounded border ${
                     event.status === 'active'
                       ? 'bg-green-900/50 text-green-400 border-green-800'
+                      : event.status === 'closed'
+                      ? 'bg-red-900/50 text-red-400 border-red-800'
                       : 'bg-zinc-800 text-zinc-400 border-zinc-700'
                   }`}>
                     {event.status}
