@@ -1,5 +1,6 @@
 export type UserRole = 'admin' | 'supervisor' | 'member'
 export type EventStatus = 'active' | 'closed' | 'archived'
+export type DivisionType = 'division' | 'branch'
 
 export interface Profile {
   id: string
@@ -9,6 +10,7 @@ export interface Profile {
   default_agency: string | null
   default_unit: string | null
   default_position: string | null
+  timezone: string | null
   created_at: string
   updated_at: string
 }
@@ -19,16 +21,49 @@ export interface Event {
   incident_number: string | null
   location: string | null
   status: EventStatus
-  op_period_start: string
-  op_period_end: string
   created_by: string
   created_at: string
   updated_at: string
 }
 
-export interface Assignment {
+export interface OperationalPeriod {
   id: string
   event_id: string
+  period_number: number
+  op_period_start: string
+  op_period_end: string
+  created_by: string
+  created_at: string
+}
+
+export interface Division {
+  id: string
+  operational_period_id: string
+  name: string
+  type: DivisionType
+  created_at: string
+}
+
+export interface Group {
+  id: string
+  operational_period_id: string
+  division_id: string
+  name: string
+  created_at: string
+}
+
+export interface Team {
+  id: string
+  operational_period_id: string
+  group_id: string
+  name: string
+  created_at: string
+}
+
+export interface Assignment {
+  id: string
+  operational_period_id: string
+  team_id: string
   user_id: string
   ics_position: string
   home_agency: string
@@ -36,11 +71,12 @@ export interface Assignment {
   assigned_by: string
   assigned_at: string
   profile?: Profile
+  team?: Team
 }
 
 export interface ActivityEntry {
   id: string
-  event_id: string
+  operational_period_id: string
   assignment_id: string
   user_id: string
   entry_time: string

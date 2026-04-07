@@ -16,7 +16,7 @@ export async function register(formData: {
   password: string
   default_agency?: string
   default_unit?: string
-  default_position?: string
+  timezone?: string
 }) {
   const supabase = await createClient()
 
@@ -31,13 +31,11 @@ export async function register(formData: {
   if (error) return { error: error.message }
   if (!data.user) return { error: 'Registration failed' }
 
-  if (formData.default_agency || formData.default_position) {
-    await supabase.from('profiles').update({
-      default_agency: formData.default_agency,
-      default_unit: formData.default_unit,
-      default_position: formData.default_position,
-    }).eq('id', data.user.id)
-  }
+  await supabase.from('profiles').update({
+    default_agency: formData.default_agency ?? null,
+    default_unit: formData.default_unit ?? null,
+    timezone: formData.timezone ?? 'America/Detroit',
+  }).eq('id', data.user.id)
 
   redirect('/dashboard')
 }
@@ -46,4 +44,20 @@ export async function logout() {
   const supabase = await createClient()
   await supabase.auth.signOut()
   redirect('/login')
+}
+
+export async function forgotPassword(email: string) {
+  const supabase = await createClient()
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/reset-password`,
+  })
+  if (error) return { error: error.message }
+  return { success: true }
+}
+
+export async function resetPassword(password: string) {
+  const supabase = await createClient()
+  const { error } = await supabase.auth.updateUser({ password })
+  if (error) return { error: error.message }
+  redirect('/dashboard')
 }

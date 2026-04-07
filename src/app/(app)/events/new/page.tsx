@@ -1,4 +1,4 @@
- 'use client'
+'use client'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -26,9 +26,9 @@ export default function NewEventPage() {
     const { data: event, error: err } = await supabase
       .from('events')
       .insert({
-        ...data,
-        op_period_start: new Date(data.op_period_start).toISOString(),
-        op_period_end: new Date(data.op_period_end).toISOString(),
+        name: data.name,
+        incident_number: data.incident_number || null,
+        location: data.location || null,
         created_by: user.id,
       })
       .select()
@@ -43,6 +43,9 @@ export default function NewEventPage() {
       <div className="mb-6">
         <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider mb-1">Admin</p>
         <h1 className="text-xl font-semibold text-zinc-100">New Event</h1>
+        <p className="text-sm text-zinc-500 mt-1">
+          Operational periods are added after the event is created.
+        </p>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
@@ -61,22 +64,6 @@ export default function NewEventPage() {
             <FormField label="Location" error={errors.location?.message}>
               <input type="text" className="input" placeholder="Optional"
                 {...register('location')} />
-            </FormField>
-          </div>
-        </div>
-
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-4">
-          <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider">
-            Operational Period
-          </p>
-          <div className="grid grid-cols-2 gap-3">
-            <FormField label="Date/Time From *" error={errors.op_period_start?.message}>
-              <input type="datetime-local" className="input"
-                {...register('op_period_start')} />
-            </FormField>
-            <FormField label="Date/Time To *" error={errors.op_period_end?.message}>
-              <input type="datetime-local" className="input"
-                {...register('op_period_end')} />
             </FormField>
           </div>
         </div>

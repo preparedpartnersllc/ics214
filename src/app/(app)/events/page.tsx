@@ -1,7 +1,8 @@
- import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { formatDate, formatICSTime } from '@/lib/utils'
+
+export const dynamic = 'force-dynamic'
 
 export default async function EventsPage() {
   const supabase = await createClient()
@@ -12,22 +13,41 @@ export default async function EventsPage() {
     .from('profiles').select('*').eq('id', user.id).single()
   if (!profile) redirect('/login')
 
-  let query = supabase
-    .from('events')
-    .select('*')
-    .order('op_period_start', { ascending: false })
+  let events: any[] = []
 
-  if (profile.role === 'member') {
+  if (profile.role === 'admin' || profile.role === 'supervisor') {
+    const { data } = await supabase
+      .from('events')
+      .select('*')
+      .order('created_at', { ascending: false })
+    events = data ?? []
+  } else {
+    // Members only see events they are assigned to
     const { data: assignments } = await supabase
-      .from('assignments').select('event_id').eq('user_id', user.id)
-    const ids = assignments?.map((a: any) => a.event_id) ?? []
-    if (ids.length === 0) {
-      return <EmptyState isAdmin={false} />
-    }
-    query = query.in('id', ids)
-  }
+      .from('assignments')
+      .select('operational_period_id')
+      .eq('user_id', user.id)
 
-  const { data: events } = await query
+    const opIds = assignments?.map((a: any) => a.operational_period_id) ?? []
+
+    if (opIds.length > 0) {
+      const { data: ops } = await supabase
+        .from('operational_periods')
+        .select('event_id')
+        .in('id', opIds)
+
+      const eventIds = [...new Set(ops?.map((o: any) => o.event_id) ?? [])]
+
+      if (eventIds.length > 0) {
+        const { data } = await supabase
+          .from('events')
+          .select('*')
+          .in('id', eventIds)
+          .order('created_at', { ascending: false })
+        events = data ?? []
+      }
+    }
+  }
 
   return (
     <div className="min-h-screen bg-zinc-950 px-4 py-8 max-w-2xl mx-auto">
@@ -47,8 +67,21 @@ export default async function EventsPage() {
       </div>
 
       <div className="space-y-3">
-        {(events ?? []).length === 0 && <EmptyState isAdmin={profile.role === 'admin'} />}
-        {(events ?? []).map((event: any) => (
+        {events.length === 0 && (
+          <div className="bg-zinc-900 border border-zinc-800 border-dashed rounded-xl p-12 text-center">
+            <p className="text-zinc-600 text-sm">
+              {profile.role === 'member' ? 'You are not assigned to any events.' : 'No events yet.'}
+            </p>
+            {profile.role === 'admin' && (
+              <Link href="/events/new"
+                className="inline-block mt-4 bg-zinc-800 text-zinc-200 border border-zinc-700 px-4 py-2 rounded-lg text-sm hover:bg-zinc-700 transition-colors">
+                Create first event
+              </Link>
+            )}
+          </div>
+        )}
+
+        {events.map((event: any) => (
           <Link
             key={event.id}
             href={`/events/${event.id}`}
@@ -60,6 +93,8 @@ export default async function EventsPage() {
                   <span className={`text-xs font-mono px-2 py-0.5 rounded border ${
                     event.status === 'active'
                       ? 'bg-green-900/50 text-green-400 border-green-800'
+                      : event.status === 'closed'
+                      ? 'bg-red-900/50 text-red-400 border-red-800'
                       : 'bg-zinc-800 text-zinc-400 border-zinc-700'
                   }`}>
                     {event.status}
@@ -75,12 +110,9 @@ export default async function EventsPage() {
                   <p className="text-sm text-zinc-500 mt-0.5">{event.location}</p>
                 )}
               </div>
-              <div className="text-right flex-shrink-0">
-                <p className="text-xs text-zinc-500">{formatDate(event.op_period_start)}</p>
-                <p className="text-xs font-mono text-zinc-400 mt-0.5">
-                  {formatICSTime(event.op_period_start)}–{formatICSTime(event.op_period_end)}
-                </p>
-              </div>
+              <span className="text-xs text-zinc-600 flex-shrink-0">
+                {new Date(event.created_at).toLocaleDateString()}
+              </span>
             </div>
           </Link>
         ))}
@@ -91,20 +123,6 @@ export default async function EventsPage() {
           ← Dashboard
         </Link>
       </div>
-    </div>
-  )
-}
-
-function EmptyState({ isAdmin }: { isAdmin: boolean }) {
-  return (
-    <div className="text-center py-20 text-zinc-600">
-      <p className="text-sm">No events yet.</p>
-      {isAdmin && (
-        <Link href="/events/new"
-          className="inline-block mt-4 bg-zinc-800 text-zinc-200 border border-zinc-700 px-4 py-2 rounded-lg text-sm hover:bg-zinc-700 transition-colors">
-          Create first event
-        </Link>
-      )}
     </div>
   )
 }
