@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatICSDateTime, getInitials } from '@/lib/utils'
 import { getPositionLabel } from '@/lib/ics-positions'
+import { HomeButton } from '@/components/ui/HomeButton'
 import Link from 'next/link'
 
 export default function ReviewPage() {
@@ -82,6 +83,8 @@ export default function ReviewPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 px-4 py-8 max-w-2xl mx-auto">
+      <HomeButton />
+
       <div className="mb-6">
         <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider mb-1">
           Staff Review

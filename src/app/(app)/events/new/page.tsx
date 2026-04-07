@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/client'
 import { FormField } from '@/components/ui/FormField'
 import { Button } from '@/components/ui/Button'
+import { HomeButton } from '@/components/ui/HomeButton'
 import Link from 'next/link'
 
 const schema = z.object({
@@ -50,6 +51,8 @@ export default function NewEventPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 px-4 py-8 max-w-2xl mx-auto">
+      <HomeButton />
+
       <div className="mb-6">
         <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider mb-1">Admin</p>
         <h1 className="text-xl font-semibold text-zinc-100">New Event</h1>
@@ -78,12 +81,9 @@ export default function NewEventPage() {
           </div>
 
           <FormField label="Event Summary" error={errors.summary?.message}>
-            <textarea
-              rows={3}
-              className="input resize-none"
+            <textarea rows={3} className="input resize-none"
               placeholder="Brief description of the incident or event..."
-              {...register('summary')}
-            />
+              {...register('summary')} />
           </FormField>
         </div>
 

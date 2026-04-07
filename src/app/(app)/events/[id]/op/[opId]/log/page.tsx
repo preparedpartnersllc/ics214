@@ -10,6 +10,7 @@ import { formatICSDateTime } from '@/lib/utils'
 import { getPositionLabel } from '@/lib/ics-positions'
 import { FormField } from '@/components/ui/FormField'
 import { Button } from '@/components/ui/Button'
+import { HomeButton } from '@/components/ui/HomeButton'
 import Link from 'next/link'
 
 export default function LogPage() {
@@ -122,7 +123,8 @@ export default function LogPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 px-4 py-6 max-w-2xl mx-auto">
-      {/* Header */}
+      <HomeButton />
+
       <div className="mb-5">
         <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider mb-1">
           ICS 214 — Activity Log
@@ -163,20 +165,15 @@ export default function LogPage() {
         </p>
 
         <FormField label="Date / Time" error={errors.entry_time?.message}>
-          <input
-            type="datetime-local"
-            className="input font-mono"
-            {...register('entry_time')}
-          />
+          <input type="datetime-local" className="input font-mono"
+            {...register('entry_time')} />
         </FormField>
 
         <FormField label="Notable Activity" error={errors.narrative?.message}>
-          <textarea
-            rows={3}
+          <textarea rows={3}
             placeholder="Describe what happened, was assigned, completed, or communicated..."
             className="input resize-none"
-            {...register('narrative')}
-          />
+            {...register('narrative')} />
         </FormField>
 
         {error && <p className="text-sm text-red-400">{error}</p>}
@@ -186,7 +183,7 @@ export default function LogPage() {
         </Button>
       </form>
 
-      {/* Entries below form */}
+      {/* Entries */}
       <div className="mb-4">
         <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider mb-2">
           Activity Log ({entries.length} entries)

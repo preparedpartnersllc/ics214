@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import { createOperationalPeriodSchema, type CreateOperationalPeriodInput } from '@/lib/validations'
 import { FormField } from '@/components/ui/FormField'
 import { Button } from '@/components/ui/Button'
+import { HomeButton } from '@/components/ui/HomeButton'
 import Link from 'next/link'
 
 export default function NewOperationalPeriodPage() {
@@ -27,7 +28,6 @@ export default function NewOperationalPeriodPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    // Get next period number
     const { data: existing } = await supabase
       .from('operational_periods')
       .select('period_number')
@@ -57,6 +57,8 @@ export default function NewOperationalPeriodPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 px-4 py-8 max-w-2xl mx-auto">
+      <HomeButton />
+
       <div className="mb-6">
         <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider mb-1">Admin</p>
         <h1 className="text-xl font-semibold text-zinc-100">New Operational Period</h1>

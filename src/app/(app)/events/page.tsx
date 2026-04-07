@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { HomeButton } from '@/components/ui/HomeButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,7 +49,6 @@ export default async function EventsPage() {
     }
   }
 
-  // Get all operational periods for these events
   const eventIds = events.map((e: any) => e.id)
   const { data: allOps } = eventIds.length > 0
     ? await supabase
@@ -60,6 +60,8 @@ export default async function EventsPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 px-4 py-8 max-w-2xl mx-auto">
+      <HomeButton />
+
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-semibold text-zinc-100">Events</h1>
@@ -99,7 +101,6 @@ export default async function EventsPage() {
               href={`/events/${event.id}`}
               className="block bg-zinc-900 border border-zinc-800 rounded-xl p-5 hover:border-zinc-700 transition-colors"
             >
-              {/* Status + incident number */}
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <span className={`text-xs font-mono px-2 py-0.5 rounded border ${
@@ -117,7 +118,6 @@ export default async function EventsPage() {
                     </span>
                   )}
                 </div>
-                {/* Large date */}
                 <p className="text-base font-mono font-medium text-zinc-300">
                   {new Date(event.created_at).toLocaleDateString('en-US', {
                     month: 'short', day: 'numeric', year: 'numeric'
@@ -125,22 +125,18 @@ export default async function EventsPage() {
                 </p>
               </div>
 
-              {/* Event name */}
               <p className="text-lg font-semibold text-zinc-100 mb-1">{event.name}</p>
 
-              {/* Location */}
               {event.location && (
                 <p className="text-sm text-zinc-500 mb-2">{event.location}</p>
               )}
 
-              {/* Summary */}
               {event.summary && (
                 <p className="text-sm text-zinc-400 mb-3 leading-relaxed border-l-2 border-zinc-700 pl-3">
                   {event.summary}
                 </p>
               )}
 
-              {/* Operational periods */}
               {eventOps.length > 0 && (
                 <div className="border-t border-zinc-800 pt-3 mt-2">
                   <p className="text-xs text-zinc-600 font-mono uppercase tracking-wider mb-2">
@@ -179,12 +175,6 @@ export default async function EventsPage() {
             </Link>
           )
         })}
-      </div>
-
-      <div className="mt-6">
-        <Link href="/dashboard" className="text-sm text-zinc-600 hover:text-zinc-400">
-          ← Dashboard
-        </Link>
       </div>
     </div>
   )

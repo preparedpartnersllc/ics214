@@ -3,6 +3,7 @@ import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { formatICSDateTime } from '@/lib/utils'
 import { getPositionLabel } from '@/lib/ics-positions'
+import { HomeButton } from '@/components/ui/HomeButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,6 +45,8 @@ export default async function MemberLogPage({
 
   return (
     <div className="min-h-screen bg-zinc-950 px-4 py-6 max-w-2xl mx-auto">
+      <HomeButton />
+
       <div className="mb-5">
         <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider mb-1">
           ICS 214 — View Only
@@ -104,7 +107,6 @@ export default async function MemberLogPage({
         </div>
       </div>
 
-      {/* Actions */}
       <div className="mt-4 space-y-3">
         <Link
           href={`/api/events/${eventId}/op/${opId}/export/${userId}`}

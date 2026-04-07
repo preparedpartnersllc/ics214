@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatICSTime, formatDate, getInitials } from '@/lib/utils'
+import { HomeButton } from '@/components/ui/HomeButton'
 import Link from 'next/link'
 
 export default function EventDetailPage() {
@@ -21,8 +22,7 @@ export default function EventDetailPage() {
   const [profileMap, setProfileMap] = useState<any>({})
   const [expandedOps, setExpandedOps] = useState<Set<string>>(new Set())
   const [confirming, setConfirming] = useState<string | null>(null)
-  const [myAssignment, setMyAssignment] = useState<any>(null)
-  const [myOp, setMyOp] = useState<any>(null)
+  const [currentUser, setCurrentUser] = useState<any>(null)
 
   useEffect(() => { load() }, [id])
 
@@ -30,6 +30,7 @@ export default function EventDetailPage() {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
+    setCurrentUser(user)
 
     const [{ data: p }, { data: e }] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', user.id).single(),
@@ -70,12 +71,6 @@ export default function EventDetailPage() {
         acc[prof.id] = prof; return acc
       }, {})
       setProfileMap(map)
-    }
-
-    const myA = (aData ?? []).find((a: any) => a.user_id === user.id)
-    setMyAssignment(myA ?? null)
-    if (myA) {
-      setMyOp((opData ?? []).find((op: any) => op.id === myA.operational_period_id) ?? null)
     }
   }
 
@@ -125,8 +120,9 @@ export default function EventDetailPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 px-4 py-8 max-w-3xl mx-auto">
+      <HomeButton />
 
-      {/* Confirm dialog overlay */}
+      {/* Confirm dialog */}
       {confirming && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
           <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 max-w-sm w-full">
@@ -188,22 +184,6 @@ export default function EventDetailPage() {
         )}
       </div>
 
-      {/* My 214 CTA */}
-      {myAssignment && myOp && (
-        <div className="mb-6 bg-orange-950/30 border border-orange-900/50 rounded-xl p-4 flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-orange-300">Your Activity Log</p>
-            <p className="text-xs text-orange-600/80 mt-0.5">
-              OP {myOp.period_number} — {myAssignment.ics_position.replace(/_/g, ' ')}
-            </p>
-          </div>
-          <Link href={`/events/${id}/op/${myOp.id}/log`}
-            className="bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-500 transition-colors">
-            Open My 214
-          </Link>
-        </div>
-      )}
-
       {/* Admin controls */}
       {profile?.role === 'admin' && (
         <div className="flex gap-2 mb-6 flex-wrap">
@@ -250,13 +230,13 @@ export default function EventDetailPage() {
             const opAssignments = assignments.filter((a: any) => a.operational_period_id === op.id)
             const opTeams = teams.filter((t: any) => t.operational_period_id === op.id)
             const opGroups = groups.filter((g: any) => g.operational_period_id === op.id)
+            const myOpAssignment = opAssignments.find((a: any) => a.user_id === currentUser?.id)
 
             return (
               <div key={op.id} className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
                 {/* OP header */}
                 <div className="flex items-center justify-between px-4 py-3">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    {/* Expand toggle */}
                     <button
                       onClick={() => toggleOp(op.id)}
                       className="w-6 h-6 rounded flex items-center justify-center bg-zinc-800 text-zinc-400 hover:bg-zinc-700 flex-shrink-0 text-sm font-mono transition-colors"
@@ -313,6 +293,26 @@ export default function EventDetailPage() {
                   </div>
                 </div>
 
+                {/* Per-OP actions — My 214 + Export */}
+                <div className="px-4 pb-3 flex gap-2 flex-wrap">
+                  {myOpAssignment && (
+                    <Link
+                      href={`/events/${id}/op/${op.id}/log`}
+                      className="bg-orange-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-orange-500 transition-colors"
+                    >
+                      Open My 214
+                    </Link>
+                  )}
+                  {(profile?.role === 'admin' || profile?.role === 'supervisor') && (
+                    <Link
+                      href={`/api/events/${id}/op/${op.id}/export/all`}
+                      className="bg-zinc-800 text-zinc-300 border border-zinc-700 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-zinc-700 transition-colors"
+                    >
+                      Export OP {op.period_number}
+                    </Link>
+                  )}
+                </div>
+
                 {/* Expandable org chart */}
                 {isExpanded && (
                   <div className="border-t border-zinc-800">
@@ -320,7 +320,7 @@ export default function EventDetailPage() {
                       <p className="px-4 py-4 text-sm text-zinc-600">No personnel assigned yet.</p>
                     ) : (
                       <div className="px-4 py-3">
-                        {/* Show unorganized teams first */}
+                        {/* Unorganized teams */}
                         {opTeams.filter((t: any) => !t.group_id).map((team: any) => {
                           const teamMembers = opAssignments.filter((a: any) => a.team_id === team.id)
                           return (
@@ -376,7 +376,7 @@ export default function EventDetailPage() {
                           )
                         })}
 
-                        {/* Divisions/Branches with groups */}
+                        {/* Divisions/Branches */}
                         {opDivisions.map((div: any) => {
                           const divGroups = opGroups.filter((g: any) => g.division_id === div.id)
                           return (
@@ -432,12 +432,6 @@ export default function EventDetailPage() {
           })}
         </div>
       )}
-
-      <div className="mt-6">
-        <Link href="/events" className="text-sm text-zinc-600 hover:text-zinc-400">
-          ← Events
-        </Link>
-      </div>
     </div>
   )
 }

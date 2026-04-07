@@ -1,10 +1,10 @@
- 'use client'
+'use client'
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { FormField } from '@/components/ui/FormField'
 import { Button } from '@/components/ui/Button'
-import Link from 'next/link'
+import { HomeButton } from '@/components/ui/HomeButton'
 
 const TIMEZONES = [
   { label: 'Eastern Time (Detroit)', value: 'America/Detroit' },
@@ -76,6 +76,8 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 px-4 py-8 max-w-2xl mx-auto">
+      <HomeButton />
+
       <div className="mb-6">
         <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider mb-1">
           Account
@@ -121,9 +123,7 @@ export default function ProfilePage() {
         </FormField>
 
         <div className="bg-zinc-800 rounded-lg px-3 py-2">
-          <p className="text-xs text-zinc-500">
-            Current time in your timezone:
-          </p>
+          <p className="text-xs text-zinc-500">Current time in your timezone:</p>
           <p className="text-sm text-zinc-200 font-mono mt-0.5">
             {new Date().toLocaleString('en-US', { timeZone: timezone })}
           </p>
@@ -131,18 +131,9 @@ export default function ProfilePage() {
       </div>
 
       {error && <p className="text-sm text-red-400 mb-4">{error}</p>}
-      {saved && (
-        <p className="text-sm text-green-400 mb-4">✓ Profile updated</p>
-      )}
+      {saved && <p className="text-sm text-green-400 mb-4">✓ Profile updated</p>}
 
-      <div className="flex gap-3">
-        <Button onClick={save} loading={saving}>Save Changes</Button>
-        <Link href="/dashboard">
-          <button className="bg-zinc-800 text-zinc-200 border border-zinc-700 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-zinc-700 transition-colors">
-            Back to Dashboard
-          </button>
-        </Link>
-      </div>
+      <Button onClick={save} loading={saving}>Save Changes</Button>
 
       <div className="mt-8 border-t border-zinc-800 pt-6">
         <p className="text-xs text-zinc-600 font-mono uppercase tracking-wider mb-2">Account</p>

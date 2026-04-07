@@ -25,19 +25,13 @@ export default function BuildOrgPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Team form
   const [teamName, setTeamName] = useState('')
   const [teamGrpId, setTeamGrpId] = useState('')
-
-  // Group form
   const [grpName, setGrpName] = useState('')
   const [grpDivId, setGrpDivId] = useState('')
-
-  // Division form
   const [divName, setDivName] = useState('')
   const [divType, setDivType] = useState<'division' | 'branch'>('division')
 
-  // Assignment form
   const [assignTeam, setAssignTeam] = useState('')
   const [assignPosition, setAssignPosition] = useState('')
   const [assignAgency, setAssignAgency] = useState('')
@@ -47,9 +41,7 @@ export default function BuildOrgPage() {
   const [selectedUser, setSelectedUser] = useState<any>(null)
   const [isManual, setIsManual] = useState(false)
   const [manualName, setManualName] = useState('')
-  const searchRef = useRef<HTMLDivElement>(null)
 
-  // Create profile form
   const [showCreateProfile, setShowCreateProfile] = useState(false)
   const [newName, setNewName] = useState('')
   const [newEmail, setNewEmail] = useState('')
@@ -68,7 +60,7 @@ export default function BuildOrgPage() {
     setSearchResults(
       profiles.filter(p =>
         p.full_name.toLowerCase().includes(q) &&
-        !assignments.find(a => a.user_id === p.id)
+        !assignments.find((a: any) => a.user_id === p.id)
       ).slice(0, 5)
     )
   }, [searchQuery, profiles, assignments])
@@ -154,21 +146,17 @@ export default function BuildOrgPage() {
 
     let userId = selectedUser?.id
 
-    // For manual entries (Agency/Org Reps), create a placeholder profile
     if (isManual) {
-      const { data: newProfile } = await supabase.from('profiles')
-        .insert({
-          id: crypto.randomUUID(),
-          full_name: manualName.trim(),
-          email: `manual_${Date.now()}@placeholder.local`,
-          role: 'member',
-          default_agency: assignAgency,
-        })
-        .select().single()
-      if (newProfile) {
-        userId = newProfile.id
-        setProfileMap((prev: any) => ({ ...prev, [newProfile.id]: newProfile }))
-      }
+      const { data: newId, error: rpcErr } = await supabase.rpc('admin_create_profile', {
+        p_full_name: manualName.trim(),
+        p_email: `manual_${Date.now()}@placeholder.local`,
+        p_role: 'member',
+        p_agency: assignAgency || null,
+      })
+      if (rpcErr || !newId) { setError(rpcErr?.message ?? 'Failed to create manual entry'); setSaving(false); return }
+      userId = newId
+      const newP = { id: newId, full_name: manualName.trim(), email: '', role: 'member', default_agency: assignAgency }
+      setProfileMap((prev: any) => ({ ...prev, [newId]: newP }))
     }
 
     const { data, error: err } = await supabase.from('assignments')
@@ -203,35 +191,24 @@ export default function BuildOrgPage() {
     setCreateError(null)
     const supabase = createClient()
 
-    // Create auth user with temp password
-    const tempPassword = Math.random().toString(36).slice(-10) + 'A1!'
-    const { data, error: err } = await supabase.auth.admin
-      ? await (supabase as any).auth.admin.createUser({
-          email: newEmail,
-          password: tempPassword,
-          user_metadata: { full_name: newName },
-          email_confirm: true,
-        })
-      : { data: null, error: { message: 'Admin API not available from client' } }
+    const { data, error: err } = await supabase.rpc('admin_create_profile', {
+      p_full_name: newName.trim(),
+      p_email: newEmail.trim(),
+      p_role: newRole,
+      p_agency: newAgency || null,
+    })
 
-    if (err || !data?.user) {
-      // Fallback: insert directly into profiles
-      const fakeId = crypto.randomUUID()
-      const { error: profileErr } = await supabase.from('profiles').insert({
-        id: fakeId,
-        full_name: newName.trim(),
-        email: newEmail.trim(),
-        role: newRole,
-        default_agency: newAgency || null,
-      })
-      if (profileErr) { setCreateError(profileErr.message); setCreatingProfile(false); return }
-      const newP = { id: fakeId, full_name: newName, email: newEmail, role: newRole, default_agency: newAgency }
-      setProfiles(prev => [...prev, newP].sort((a, b) => a.full_name.localeCompare(b.full_name)))
-      setProfileMap((prev: any) => ({ ...prev, [fakeId]: newP }))
-    } else {
-      await load()
+    if (err) { setCreateError(err.message); setCreatingProfile(false); return }
+
+    const newP = {
+      id: data,
+      full_name: newName.trim(),
+      email: newEmail.trim(),
+      role: newRole,
+      default_agency: newAgency || null
     }
-
+    setProfiles(prev => [...prev, newP].sort((a, b) => a.full_name.localeCompare(b.full_name)))
+    setProfileMap((prev: any) => ({ ...prev, [data]: newP }))
     setNewName(''); setNewEmail(''); setNewAgency(''); setNewRole('member')
     setShowCreateProfile(false)
     setCreatingProfile(false)
@@ -302,7 +279,7 @@ export default function BuildOrgPage() {
         )}
       </div>
 
-      {/* Step 2: Create Group (optional) */}
+      {/* Step 2: Create Group */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 mb-4">
         <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider mb-3">
           Step 2 — Create Group (optional)
@@ -340,7 +317,7 @@ export default function BuildOrgPage() {
         )}
       </div>
 
-      {/* Step 3: Create Division/Branch (optional) */}
+      {/* Step 3: Create Division/Branch */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 mb-4">
         <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider mb-3">
           Step 3 — Create Division or Branch (optional)
@@ -387,7 +364,6 @@ export default function BuildOrgPage() {
           </button>
         </div>
 
-        {/* Create profile inline */}
         {showCreateProfile && (
           <div className="bg-zinc-800 rounded-xl p-4 mb-4 space-y-3">
             <p className="text-xs text-zinc-400 font-mono uppercase tracking-wider">New Profile</p>
@@ -426,9 +402,8 @@ export default function BuildOrgPage() {
         )}
 
         <div className="space-y-3">
-          {/* Person search */}
           <FormField label="Search Person">
-            <div className="relative" ref={searchRef}>
+            <div className="relative">
               {!isManual ? (
                 <>
                   {selectedUser ? (
@@ -533,7 +508,6 @@ export default function BuildOrgPage() {
           </Button>
         </div>
 
-        {/* Current assignments */}
         {assignments.length > 0 && (
           <div className="mt-4 space-y-2">
             <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider">
