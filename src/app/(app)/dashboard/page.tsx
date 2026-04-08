@@ -61,25 +61,18 @@ export default async function DashboardPage() {
             Incident Management
           </span>
         </div>
-        <h1 className="text-2xl font-semibold text-zinc-100">
-          {profile.full_name}
-        </h1>
+        <h1 className="text-2xl font-semibold text-zinc-100">{profile.full_name}</h1>
         <p className="text-zinc-500 text-sm mt-0.5 capitalize">{profile.role}</p>
       </div>
 
-      {/* Nav grid — new arrangement:
-          Row 1: Profile | Staff Review
-          Row 2: New Event | Events        */}
+      {/* Nav grid */}
       <div className="grid grid-cols-2 gap-3 mb-8">
-
-        {/* Row 1 left: Profile */}
         <Link href="/profile"
           className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 hover:border-zinc-700 transition-colors">
           <p className="text-zinc-100 font-medium text-sm">Profile</p>
           <p className="text-zinc-500 text-xs mt-0.5">Settings & timezone</p>
         </Link>
 
-        {/* Row 1 right: Staff Review (admin/supervisor only, else Events) */}
         {(profile.role === 'admin' || profile.role === 'supervisor') ? (
           <Link href="/staff"
             className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 hover:border-zinc-700 transition-colors">
@@ -94,7 +87,6 @@ export default async function DashboardPage() {
           </Link>
         )}
 
-        {/* Row 2 left: New Event (admin only, else empty placeholder) */}
         {profile.role === 'admin' ? (
           <Link href="/events/new"
             className="bg-orange-950/30 border border-orange-900/50 rounded-xl p-4 hover:border-orange-700 transition-colors">
@@ -108,12 +100,27 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        {/* Row 2 right: Events */}
         <Link href="/events"
           className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 hover:border-zinc-700 transition-colors">
           <p className="text-zinc-100 font-medium text-sm">Events</p>
           <p className="text-zinc-500 text-xs mt-0.5">All incidents</p>
         </Link>
+
+        {profile.role === 'admin' && (
+          <>
+            <Link href="/admin/people"
+              className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 hover:border-zinc-700 transition-colors">
+              <p className="text-zinc-100 font-medium text-sm">People</p>
+              <p className="text-zinc-500 text-xs mt-0.5">Manage profiles & invites</p>
+            </Link>
+
+            <Link href="/admin/import"
+              className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 hover:border-zinc-700 transition-colors">
+              <p className="text-zinc-100 font-medium text-sm">Import Profiles</p>
+              <p className="text-zinc-500 text-xs mt-0.5">Bulk CSV upload</p>
+            </Link>
+          </>
+        )}
       </div>
 
       {/* Member: my active events */}
