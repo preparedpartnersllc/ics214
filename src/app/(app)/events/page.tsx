@@ -64,20 +64,23 @@ export default async function EventsPage() {
 
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-semibold text-zinc-100">Events</h1>
+          <h1 className="text-xl font-semibold text-zinc-100 tracking-tight">Events</h1>
           <p className="text-sm text-zinc-500 mt-0.5">
-            {profile.role === 'member' ? 'Your assigned events' : 'All events'}
+            {profile.role === 'member' ? 'Your assigned events' : 'All incidents'}
           </p>
         </div>
         {profile.role === 'admin' && (
           <Link href="/events/new"
-            className="bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-500 transition-colors">
-            + New Event
+            className="inline-flex items-center gap-1.5 bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-500 transition-colors shadow-sm">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 5v14M5 12h14"/>
+            </svg>
+            New Event
           </Link>
         )}
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-3">
         {events.length === 0 && (
           <div className="bg-zinc-900 border border-zinc-800 border-dashed rounded-xl p-12 text-center">
             <p className="text-zinc-600 text-sm">
@@ -94,38 +97,35 @@ export default async function EventsPage() {
 
         {events.map((event: any) => {
           const eventOps = (allOps ?? []).filter((op: any) => op.event_id === event.id)
+          const activeOps = eventOps.filter((op: any) => op.status === 'active')
 
           return (
             <Link
               key={event.id}
               href={`/events/${event.id}`}
-              className="block bg-zinc-900 border border-zinc-800 rounded-xl p-5 hover:border-zinc-700 transition-colors"
+              className="block bg-zinc-900 border border-zinc-800 rounded-xl p-5 hover:border-zinc-700 hover:bg-zinc-800/30 transition-all group"
             >
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs font-mono px-2 py-0.5 rounded border ${
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ring-1 ring-inset ${
                     event.status === 'active'
-                      ? 'bg-green-900/50 text-green-400 border-green-800'
+                      ? 'bg-green-500/10 text-green-400 ring-green-500/20'
                       : event.status === 'closed'
-                      ? 'bg-red-900/50 text-red-400 border-red-800'
-                      : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                      ? 'bg-zinc-500/10 text-zinc-400 ring-zinc-500/20'
+                      : 'bg-zinc-500/10 text-zinc-500 ring-zinc-700/30'
                   }`}>
                     {event.status}
                   </span>
                   {event.incident_number && (
-                    <span className="text-xs font-mono text-zinc-500">
-                      #{event.incident_number}
-                    </span>
+                    <span className="text-xs font-mono text-zinc-500">#{event.incident_number}</span>
                   )}
                 </div>
-                <p className="text-base font-mono font-medium text-zinc-300">
-                  {new Date(event.created_at).toLocaleDateString('en-US', {
-                    month: 'short', day: 'numeric', year: 'numeric'
-                  })}
-                </p>
+                <svg className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition-colors flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M9 18l6-6-6-6"/>
+                </svg>
               </div>
 
-              <p className="text-lg font-semibold text-zinc-100 mb-1">{event.name}</p>
+              <p className="text-base font-semibold text-zinc-100 mb-0.5">{event.name}</p>
 
               {event.location && (
                 <p className="text-sm text-zinc-500 mb-2">{event.location}</p>
@@ -138,38 +138,11 @@ export default async function EventsPage() {
               )}
 
               {eventOps.length > 0 && (
-                <div className="border-t border-zinc-800 pt-3 mt-2">
-                  <p className="text-xs text-zinc-600 font-mono uppercase tracking-wider mb-2">
-                    Operational Periods ({eventOps.length})
-                  </p>
-                  <div className="space-y-1">
-                    {eventOps.map((op: any) => (
-                      <div key={op.id}
-                        className="flex items-center justify-between text-xs">
-                        <span className="font-mono text-zinc-400">
-                          OP {op.period_number}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-zinc-500 font-mono">
-                            {new Date(op.op_period_start).toLocaleDateString('en-US', {
-                              month: 'short', day: 'numeric'
-                            })} {new Date(op.op_period_start).toLocaleTimeString('en-US', {
-                              hour: '2-digit', minute: '2-digit', hour12: false
-                            })} — {new Date(op.op_period_end).toLocaleTimeString('en-US', {
-                              hour: '2-digit', minute: '2-digit', hour12: false
-                            })}
-                          </span>
-                          <span className={`px-1.5 py-0.5 rounded font-mono ${
-                            op.status === 'active'
-                              ? 'bg-green-900/40 text-green-500'
-                              : 'bg-zinc-800 text-zinc-500'
-                          }`}>
-                            {op.status}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                <div className="flex items-center gap-3 mt-3 pt-3 border-t border-zinc-800">
+                  <span className="text-xs text-zinc-600">{eventOps.length} operational {eventOps.length === 1 ? 'period' : 'periods'}</span>
+                  {activeOps.length > 0 && (
+                    <span className="text-xs text-green-500">{activeOps.length} active</span>
+                  )}
                 </div>
               )}
             </Link>

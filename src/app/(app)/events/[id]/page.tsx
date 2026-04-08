@@ -22,7 +22,7 @@ export default function EventDetailPage() {
   const [profileMap, setProfileMap] = useState<any>({})
   const [expandedOps, setExpandedOps] = useState<Set<string>>(new Set())
   const [confirming, setConfirming] = useState<string | null>(null)
-  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)  // ← FIXED
 
   useEffect(() => { load() }, [id])
 
@@ -30,7 +30,7 @@ export default function EventDetailPage() {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    setCurrentUser(user)
+    setCurrentUserId(user.id)  // ← FIXED: store just the ID string
 
     const [{ data: p }, { data: e }] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', user.id).single(),
@@ -122,7 +122,6 @@ export default function EventDetailPage() {
     <div className="min-h-screen bg-zinc-950 px-4 py-8 max-w-3xl mx-auto">
       <HomeButton />
 
-      {/* Confirm dialog */}
       {confirming && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
           <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 max-w-sm w-full">
@@ -159,15 +158,14 @@ export default function EventDetailPage() {
         </div>
       )}
 
-      {/* Event header */}
       <div className="mb-6">
-        <div className="flex items-center gap-2 mb-2">
-          <span className={`text-xs font-mono px-2 py-0.5 rounded border ${
+        <div className="flex items-center gap-2 mb-3">
+          <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ring-1 ring-inset ${
             event.status === 'active'
-              ? 'bg-green-900/50 text-green-400 border-green-800'
+              ? 'bg-green-500/10 text-green-400 ring-green-500/20'
               : event.status === 'closed'
-              ? 'bg-red-900/50 text-red-400 border-red-800'
-              : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+              ? 'bg-zinc-500/10 text-zinc-400 ring-zinc-500/20'
+              : 'bg-zinc-500/10 text-zinc-500 ring-zinc-700/30'
           }`}>
             {event.status}
           </span>
@@ -175,8 +173,8 @@ export default function EventDetailPage() {
             <span className="text-xs font-mono text-zinc-500">#{event.incident_number}</span>
           )}
         </div>
-        <h1 className="text-xl font-semibold text-zinc-100">{event.name}</h1>
-        {event.location && <p className="text-sm text-zinc-500 mt-0.5">{event.location}</p>}
+        <h1 className="text-xl font-semibold text-zinc-100 tracking-tight">{event.name}</h1>
+        {event.location && <p className="text-sm text-zinc-500 mt-1">{event.location}</p>}
         {event.summary && (
           <p className="text-sm text-zinc-400 mt-2 leading-relaxed border-l-2 border-zinc-700 pl-3">
             {event.summary}
@@ -184,34 +182,33 @@ export default function EventDetailPage() {
         )}
       </div>
 
-      {/* Admin controls */}
       {profile?.role === 'admin' && (
         <div className="flex gap-2 mb-6 flex-wrap">
           <Link href={`/events/${id}/op/new`}
-            className="bg-zinc-800 text-zinc-200 border border-zinc-700 px-3 py-2 rounded-lg text-sm hover:bg-zinc-700 transition-colors">
-            + Operational Period
+            className="inline-flex items-center gap-1.5 bg-zinc-800 text-zinc-200 border border-zinc-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-zinc-700 hover:border-zinc-600 transition-all">
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
+            Add Operational Period
           </Link>
           <Link href={`/api/events/${id}/export`}
-            className="bg-zinc-800 text-zinc-200 border border-zinc-700 px-3 py-2 rounded-lg text-sm hover:bg-zinc-700 transition-colors">
+            className="bg-zinc-800 text-zinc-200 border border-zinc-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-zinc-700 hover:border-zinc-600 transition-all">
             Export All
           </Link>
           {event.status === 'active' ? (
             <button
               onClick={() => setConfirming('close-event')}
-              className="bg-red-950/50 text-red-400 border border-red-900 px-3 py-2 rounded-lg text-sm hover:bg-red-900/50 transition-colors">
+              className="bg-red-950/40 text-red-400 border border-red-900/60 px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-950/70 transition-all">
               Close Event
             </button>
           ) : (
             <button
               onClick={() => setConfirming('reopen-event')}
-              className="bg-zinc-800 text-zinc-400 border border-zinc-700 px-3 py-2 rounded-lg text-sm hover:bg-zinc-700 transition-colors">
+              className="bg-zinc-800 text-zinc-300 border border-zinc-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-zinc-700 transition-all">
               Reopen Event
             </button>
           )}
         </div>
       )}
 
-      {/* Operational Periods */}
       {ops.length === 0 ? (
         <div className="bg-zinc-900 border border-zinc-800 border-dashed rounded-xl p-8 text-center">
           <p className="text-zinc-600 text-sm">No operational periods yet.</p>
@@ -230,28 +227,27 @@ export default function EventDetailPage() {
             const opAssignments = assignments.filter((a: any) => a.operational_period_id === op.id)
             const opTeams = teams.filter((t: any) => t.operational_period_id === op.id)
             const opGroups = groups.filter((g: any) => g.operational_period_id === op.id)
-            const myOpAssignment = opAssignments.find((a: any) => a.user_id === currentUser?.id)
+            const myOpAssignment = opAssignments.find((a: any) => a.user_id === currentUserId)  // ← FIXED
 
             return (
               <div key={op.id} className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
-                {/* OP header */}
-                <div className="flex items-center justify-between px-4 py-3">
+                <div className="flex items-center justify-between px-4 py-3.5">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     <button
                       onClick={() => toggleOp(op.id)}
-                      className="w-6 h-6 rounded flex items-center justify-center bg-zinc-800 text-zinc-400 hover:bg-zinc-700 flex-shrink-0 text-sm font-mono transition-colors"
+                      className="w-7 h-7 rounded-lg flex items-center justify-center bg-zinc-800 border border-zinc-700 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 flex-shrink-0 transition-all"
                     >
-                      {isExpanded ? '−' : '+'}
+                      <svg className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path d="M6 9l6 6 6-6"/>
+                      </svg>
                     </button>
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-zinc-200">
-                          OP {op.period_number}
-                        </p>
-                        <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-semibold text-zinc-200">Operational Period {op.period_number}</p>
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ring-1 ring-inset ${
                           op.status === 'active'
-                            ? 'bg-green-900/40 text-green-500'
-                            : 'bg-zinc-800 text-zinc-500'
+                            ? 'bg-green-500/10 text-green-400 ring-green-500/20'
+                            : 'bg-zinc-500/10 text-zinc-500 ring-zinc-700/30'
                         }`}>
                           {op.status}
                         </span>
@@ -265,13 +261,13 @@ export default function EventDetailPage() {
                   <div className="flex items-center gap-2 flex-shrink-0">
                     {profile?.role === 'admin' && (
                       <Link href={`/events/${id}/op/${op.id}/build`}
-                        className="text-xs text-zinc-400 hover:text-zinc-200 px-2 py-1 rounded hover:bg-zinc-800 transition-colors">
-                        Manage
+                        className="text-xs bg-zinc-800 text-zinc-200 border border-zinc-700 px-3 py-1.5 rounded-lg font-medium hover:bg-zinc-700 transition-colors">
+                        Manage Org Chart
                       </Link>
                     )}
                     {(profile?.role === 'admin' || profile?.role === 'supervisor') && (
                       <Link href={`/events/${id}/op/${op.id}/review`}
-                        className="text-xs text-zinc-400 hover:text-zinc-200 px-2 py-1 rounded hover:bg-zinc-800 transition-colors">
+                        className="text-xs bg-zinc-800 text-zinc-200 border border-zinc-700 px-3 py-1.5 rounded-lg font-medium hover:bg-zinc-700 transition-colors">
                         Review
                       </Link>
                     )}
@@ -279,13 +275,13 @@ export default function EventDetailPage() {
                       op.status === 'active' ? (
                         <button
                           onClick={() => setConfirming(`close-op-${op.id}`)}
-                          className="text-xs text-red-500 hover:text-red-400 px-2 py-1 rounded hover:bg-zinc-800 transition-colors">
+                          className="text-xs bg-red-950/60 text-red-400 border border-red-900 px-3 py-1.5 rounded-lg font-medium hover:bg-red-900/60 transition-colors">
                           Demobilize
                         </button>
                       ) : (
                         <button
                           onClick={() => setConfirming(`reopen-op-${op.id}`)}
-                          className="text-xs text-zinc-500 hover:text-zinc-300 px-2 py-1 rounded hover:bg-zinc-800 transition-colors">
+                          className="text-xs bg-zinc-800 text-zinc-200 border border-zinc-700 px-3 py-1.5 rounded-lg font-medium hover:bg-zinc-700 transition-colors">
                           Reopen
                         </button>
                       )
@@ -293,7 +289,6 @@ export default function EventDetailPage() {
                   </div>
                 </div>
 
-                {/* Per-OP actions — My 214 + Export */}
                 <div className="px-4 pb-3 flex gap-2 flex-wrap">
                   {myOpAssignment && (
                     <Link
@@ -308,19 +303,17 @@ export default function EventDetailPage() {
                       href={`/api/events/${id}/op/${op.id}/export/all`}
                       className="bg-zinc-800 text-zinc-300 border border-zinc-700 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-zinc-700 transition-colors"
                     >
-                      Export OP {op.period_number}
+                      Export Operational Period {op.period_number}
                     </Link>
                   )}
                 </div>
 
-                {/* Expandable org chart */}
                 {isExpanded && (
                   <div className="border-t border-zinc-800">
                     {opAssignments.length === 0 ? (
                       <p className="px-4 py-4 text-sm text-zinc-600">No personnel assigned yet.</p>
                     ) : (
                       <div className="px-4 py-3">
-                        {/* Unorganized teams */}
                         {opTeams.filter((t: any) => !t.group_id).map((team: any) => {
                           const teamMembers = opAssignments.filter((a: any) => a.team_id === team.id)
                           return (
@@ -344,7 +337,6 @@ export default function EventDetailPage() {
                           )
                         })}
 
-                        {/* Groups without divisions */}
                         {opGroups.filter((g: any) => !g.division_id).map((grp: any) => {
                           const grpTeams = opTeams.filter((t: any) => t.group_id === grp.id)
                           return (
@@ -376,7 +368,6 @@ export default function EventDetailPage() {
                           )
                         })}
 
-                        {/* Divisions/Branches */}
                         {opDivisions.map((div: any) => {
                           const divGroups = opGroups.filter((g: any) => g.division_id === div.id)
                           return (
@@ -421,9 +412,7 @@ export default function EventDetailPage() {
                     )}
 
                     <div className="px-4 py-2 border-t border-zinc-800 bg-zinc-950/50">
-                      <p className="text-xs text-zinc-600">
-                        {opAssignments.length} personnel assigned
-                      </p>
+                      <p className="text-xs text-zinc-600">{opAssignments.length} personnel assigned</p>
                     </div>
                   </div>
                 )}

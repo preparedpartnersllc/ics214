@@ -1,24 +1,52 @@
 @import "tailwindcss";
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
     background-color: #09090b;
     color: #f4f4f5;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background-color: rgba(234, 88, 12, 0.25);
+    color: #f4f4f5;
+  }
+
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #3f3f46;
+    border-radius: 99px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #52525b;
   }
 }
 
 @layer components {
   .input {
     width: 100%;
-    background-color: #27272a;
+    background-color: #18181b;
     border: 1px solid #3f3f46;
-    border-radius: 0.5rem;
-    padding: 0.625rem 0.75rem;
+    border-radius: 0.625rem;
+    padding: 0.625rem 0.875rem;
     font-size: 0.875rem;
     color: #f4f4f5;
     outline: none;
-    transition: border-color 0.15s;
+    transition: border-color 0.15s, box-shadow 0.15s;
   }
 
   .input::placeholder {
@@ -27,11 +55,15 @@
 
   .input:focus {
     border-color: #ea580c;
-    box-shadow: 0 0 0 1px rgba(234, 88, 12, 0.3);
+    box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.12);
   }
 
   .input:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  select.input {
+    cursor: pointer;
   }
 }

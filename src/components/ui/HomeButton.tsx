@@ -1,15 +1,16 @@
- import Link from 'next/link'
+import Link from 'next/link'
 
 export function HomeButton() {
   return (
     <Link
       href="/dashboard"
-      className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 font-mono transition-colors mb-6"
+      className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-200 transition-colors mb-8 group"
     >
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
-        <polyline points="9,22 9,12 15,12 15,22"/>
-      </svg>
+      <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-zinc-900 border border-zinc-800 group-hover:border-zinc-700 transition-colors">
+        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <path d="M19 12H5M12 5l-7 7 7 7"/>
+        </svg>
+      </span>
       Dashboard
     </Link>
   )

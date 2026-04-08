@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { FormField } from '@/components/ui/FormField'
@@ -304,6 +304,59 @@ export default function BuildOrgPage() {
     setSaving(false)
   }
 
+  async function assignSectionPersonnel(section: 'planning' | 'logistics' | 'finance') {
+    if (!assignPosition || !assignAgency) {
+      setError('Position and agency are required'); return
+    }
+    if (!assignSelected && !isManual) { setError('Select a person or use manual entry'); return }
+    if (isManual && !manualName.trim()) { setError('Enter a name'); return }
+
+    setSaving(true); setError(null)
+    const supabase = createClient()
+    const user = await getCurrentUser()
+    let userId = assignSelected?.id
+
+    if (isManual) {
+      const { data: newId } = await supabase.rpc('admin_create_profile', {
+        p_full_name: manualName.trim(),
+        p_email: `manual_${Date.now()}@placeholder.local`,
+        p_role: 'member',
+        p_agency: assignAgency || null,
+      })
+      if (!newId) { setError('Failed to create entry'); setSaving(false); return }
+      userId = newId
+      const newP = { id: newId, full_name: manualName.trim(), default_agency: assignAgency }
+      setProfileMap((prev: any) => ({ ...prev, [newId]: newP }))
+    }
+
+    const sectionTeamName = `__${section}__`
+    let sectionTeam = teams.find(t => t.name === sectionTeamName)
+    if (!sectionTeam) {
+      const { data: t } = await supabase.from('teams')
+        .insert({ operational_period_id: opId, group_id: null, name: sectionTeamName })
+        .select().single()
+      if (t) { sectionTeam = t; setTeams(prev => [...prev, t]) }
+    }
+
+    if (!sectionTeam) { setError('Failed to create section team'); setSaving(false); return }
+
+    const { data, error: err } = await supabase.from('assignments').insert({
+      operational_period_id: opId,
+      team_id: sectionTeam.id,
+      user_id: userId,
+      ics_position: assignPosition,
+      home_agency: assignAgency,
+      home_unit: assignUnit || null,
+      assigned_by: user!.id,
+    }).select().single()
+
+    if (err) { setError(err.message); setSaving(false); return }
+    setAssignments(prev => [...prev, data])
+    setAssignSelected(null); setAssignSearch(''); setManualName('')
+    setAssignPosition(''); setIsManual(false)
+    setSaving(false)
+  }
+
   async function createProfile() {
     if (!newName.trim() || !newEmail.trim()) { setCreateError('Name and email are required'); return }
     setCreatingProfile(true); setCreateError(null)
@@ -318,7 +371,6 @@ export default function BuildOrgPage() {
 
     if (err) { setCreateError(err.message); setCreatingProfile(false); return }
 
-    // Update additional fields
     if (newPhone || newNotes) {
       await supabase.from('profiles').update({
         phone: newPhone || null,
@@ -327,13 +379,9 @@ export default function BuildOrgPage() {
     }
 
     const newP = {
-      id: data,
-      full_name: newName.trim(),
-      email: newEmail.trim(),
-      role: newRole,
-      default_agency: newAgency || null,
-      phone: newPhone || null,
-      notes: newNotes || null,
+      id: data, full_name: newName.trim(), email: newEmail.trim(),
+      role: newRole, default_agency: newAgency || null,
+      phone: newPhone || null, notes: newNotes || null,
     }
     setProfiles(prev => [...prev, newP].sort((a, b) => a.full_name.localeCompare(b.full_name)))
     setProfileMap((prev: any) => ({ ...prev, [data]: newP }))
@@ -368,9 +416,16 @@ export default function BuildOrgPage() {
     return []
   }
 
-  const opsTeams = teams.filter(t => t.name !== '__command__')
+  const opsTeams = teams.filter(t => !t.name.startsWith('__'))
 
-  const PersonSearch = () => (
+  if (loading) return (
+    <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+      <p className="text-zinc-500">Loading...</p>
+    </div>
+  )
+
+  // Reusable person search JSX — inlined to avoid focus loss bug
+  const renderPersonSearch = () => (
     <FormField label="Search Person">
       <div className="relative">
         {!isManual ? (
@@ -385,8 +440,13 @@ export default function BuildOrgPage() {
                   className="text-zinc-500 hover:text-red-400 text-lg leading-none">×</button>
               </div>
             ) : (
-              <input type="text" className="input" placeholder="Type to search..."
-                value={assignSearch} onChange={e => setAssignSearch(e.target.value)} />
+              <input
+                type="text"
+                className="input"
+                placeholder="Type to search..."
+                value={assignSearch}
+                onChange={e => setAssignSearch(e.target.value)}
+              />
             )}
             {assignResults.length > 0 && !assignSelected && (
               <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-lg overflow-hidden z-10">
@@ -410,8 +470,13 @@ export default function BuildOrgPage() {
             )}
           </>
         ) : (
-          <input type="text" className="input" placeholder="Type name manually..."
-            value={manualName} onChange={e => setManualName(e.target.value)} />
+          <input
+            type="text"
+            className="input"
+            placeholder="Type name manually..."
+            value={manualName}
+            onChange={e => setManualName(e.target.value)}
+          />
         )}
       </div>
       <button
@@ -420,12 +485,6 @@ export default function BuildOrgPage() {
         {isManual ? '← Search registered members' : 'Enter manually'}
       </button>
     </FormField>
-  )
-
-  if (loading) return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-      <p className="text-zinc-500">Loading...</p>
-    </div>
   )
 
   return (
@@ -774,7 +833,7 @@ export default function BuildOrgPage() {
 
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-3">
             <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider">Step 5 — Assign Personnel</p>
-            <PersonSearch />
+            {renderPersonSearch()}
             <FormField label="Team *">
               <select className="input" value={assignTeam} onChange={e => setAssignTeam(e.target.value)}>
                 <option value="">-- Select team --</option>
@@ -839,13 +898,6 @@ export default function BuildOrgPage() {
           <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider">
             {activeTab === 'planning' ? 'Planning Section' : activeTab === 'logistics' ? 'Logistics Section' : 'Finance / Admin Section'}
           </p>
-          <PersonSearch />
-          <FormField label="Team *">
-            <select className="input" value={assignTeam} onChange={e => setAssignTeam(e.target.value)}>
-              <option value="">-- Select team --</option>
-              {opsTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
-          </FormField>
           <FormField label="ICS Position *">
             <select className="input" value={assignPosition} onChange={e => setAssignPosition(e.target.value)}>
               <option value="">-- Select position --</option>
@@ -854,6 +906,7 @@ export default function BuildOrgPage() {
               ))}
             </select>
           </FormField>
+          {renderPersonSearch()}
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Home Agency *">
               <input type="text" className="input" value={assignAgency} onChange={e => setAssignAgency(e.target.value)} />
@@ -863,10 +916,7 @@ export default function BuildOrgPage() {
             </FormField>
           </div>
           <Button
-            onClick={() => assignPersonnel(
-              activeTab === 'planning' ? PLANNING_POSITIONS :
-              activeTab === 'logistics' ? LOGISTICS_POSITIONS : FINANCE_POSITIONS
-            )}
+            onClick={() => assignSectionPersonnel(activeTab as 'planning' | 'logistics' | 'finance')}
             loading={saving} className="w-full">
             Assign to {activeTab === 'planning' ? 'Planning' : activeTab === 'logistics' ? 'Logistics' : 'Finance'}
           </Button>
@@ -874,7 +924,6 @@ export default function BuildOrgPage() {
             <div className="space-y-2 border-t border-zinc-800 pt-4">
               {sectionAssignments(activeTab).map(a => {
                 const p = profileMap[a.user_id]
-                const team = opsTeams.find(t => t.id === a.team_id)
                 return (
                   <div key={a.id} className="flex items-center gap-3 py-2 px-3 bg-zinc-800 rounded-lg">
                     <div className="w-7 h-7 rounded-full bg-zinc-700 flex items-center justify-center text-xs font-mono text-zinc-300 flex-shrink-0">
@@ -882,7 +931,7 @@ export default function BuildOrgPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-zinc-200">{p?.full_name ?? 'Unknown'}</p>
-                      <p className="text-xs text-zinc-500">{getPositionLabel(a.ics_position)} · {team?.name}</p>
+                      <p className="text-xs text-zinc-500">{getPositionLabel(a.ics_position)}</p>
                     </div>
                     <button onClick={() => deleteAssignment(a.id)}
                       className="text-zinc-600 hover:text-red-400 text-lg leading-none">×</button>

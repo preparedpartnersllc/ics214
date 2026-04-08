@@ -13,6 +13,12 @@ import { Button } from '@/components/ui/Button'
 import { HomeButton } from '@/components/ui/HomeButton'
 import Link from 'next/link'
 
+function nowLocal() {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 export default function LogPage() {
   const params = useParams()
   const eventId = params.id as string
@@ -31,7 +37,7 @@ export default function LogPage() {
     useForm<ActivityEntryInput>({
       resolver: zodResolver(activityEntrySchema),
       defaultValues: {
-        entry_time: new Date().toISOString().slice(0, 16),
+        entry_time: nowLocal(),
         narrative: '',
       }
     })
@@ -97,7 +103,7 @@ export default function LogPage() {
     setEntries(prev => [...prev, entry].sort(
       (a, b) => new Date(a.entry_time).getTime() - new Date(b.entry_time).getTime()
     ))
-    reset({ entry_time: new Date().toISOString().slice(0, 16), narrative: '' })
+    reset({ entry_time: nowLocal(), narrative: '' })
   }
 
   async function deleteEntry(id: string) {
@@ -149,10 +155,12 @@ export default function LogPage() {
           <p className="text-xs text-zinc-600 font-mono">Agency</p>
           <p className="text-sm text-zinc-200">{assignment.home_agency}</p>
         </div>
-        <div>
-          <p className="text-xs text-zinc-600 font-mono">Team</p>
-          <p className="text-sm text-zinc-200">{team?.name}</p>
-        </div>
+        {team && !team.name.startsWith('__') && (
+          <div>
+            <p className="text-xs text-zinc-600 font-mono">Team</p>
+            <p className="text-sm text-zinc-200">{team.name}</p>
+          </div>
+        )}
       </div>
 
       {/* Log Activity form FIRST */}
