@@ -1,4 +1,4 @@
- 'use client'
+'use client'
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -36,7 +36,7 @@ export default function PeoplePage() {
     const res = await fetch('/api/admin/invite', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, email }),
+      body: JSON.stringify({ email }),
     })
     setInviteResults(prev => ({
       ...prev,
@@ -157,7 +157,6 @@ export default function PeoplePage() {
                   )}
                 </div>
 
-                {/* Role selector */}
                 <select
                   value={p.role}
                   onChange={e => updateRole(p.id, e.target.value)}
@@ -169,7 +168,6 @@ export default function PeoplePage() {
                 </select>
               </div>
 
-              {/* Actions */}
               <div className="flex gap-2 mt-3 flex-wrap">
                 {!placeholder && (
                   <button
