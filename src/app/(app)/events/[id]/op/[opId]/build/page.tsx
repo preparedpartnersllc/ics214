@@ -45,21 +45,17 @@ export default function BuildOrgPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Inline team-to-group assignment
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null)
   const [editingTeamGrpId, setEditingTeamGrpId] = useState('')
 
-  // Command staff
   const [cmdPosition, setCmdPosition] = useState('')
   const [cmdSearch, setCmdSearch] = useState('')
   const [cmdResults, setCmdResults] = useState<any[]>([])
   const [cmdSelected, setCmdSelected] = useState<any>(null)
 
-  // Agency reps
   const [agencyName, setAgencyName] = useState('')
   const [agencyOrg, setAgencyOrg] = useState('')
 
-  // Ops
   const [grpName, setGrpName] = useState('')
   const [teamName, setTeamName] = useState('')
   const [teamGrpId, setTeamGrpId] = useState('')
@@ -69,7 +65,6 @@ export default function BuildOrgPage() {
   const [assignDivType, setAssignDivType] = useState<'group' | 'team'>('group')
   const [assignDivItemId, setAssignDivItemId] = useState('')
 
-  // Personnel assignment
   const [assignSearch, setAssignSearch] = useState('')
   const [assignResults, setAssignResults] = useState<any[]>([])
   const [assignSelected, setAssignSelected] = useState<any>(null)
@@ -80,12 +75,13 @@ export default function BuildOrgPage() {
   const [isManual, setIsManual] = useState(false)
   const [manualName, setManualName] = useState('')
 
-  // Create profile
   const [showCreateProfile, setShowCreateProfile] = useState(false)
   const [newName, setNewName] = useState('')
   const [newEmail, setNewEmail] = useState('')
+  const [newPhone, setNewPhone] = useState('')
   const [newAgency, setNewAgency] = useState('')
   const [newRole, setNewRole] = useState('member')
+  const [newNotes, setNewNotes] = useState('')
   const [creatingProfile, setCreatingProfile] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
 
@@ -255,7 +251,6 @@ export default function BuildOrgPage() {
     if (!assignDivTarget || !assignDivItemId) { setError('Select a division and item'); return }
     setSaving(true); setError(null)
     const supabase = createClient()
-
     if (assignDivType === 'group') {
       await supabase.from('groups').update({ division_id: assignDivTarget }).eq('id', assignDivItemId)
       setGroups(prev => prev.map(g => g.id === assignDivItemId ? { ...g, division_id: assignDivTarget } : g))
@@ -322,10 +317,28 @@ export default function BuildOrgPage() {
     })
 
     if (err) { setCreateError(err.message); setCreatingProfile(false); return }
-    const newP = { id: data, full_name: newName.trim(), email: newEmail.trim(), role: newRole, default_agency: newAgency || null }
+
+    // Update additional fields
+    if (newPhone || newNotes) {
+      await supabase.from('profiles').update({
+        phone: newPhone || null,
+        notes: newNotes || null,
+      }).eq('id', data)
+    }
+
+    const newP = {
+      id: data,
+      full_name: newName.trim(),
+      email: newEmail.trim(),
+      role: newRole,
+      default_agency: newAgency || null,
+      phone: newPhone || null,
+      notes: newNotes || null,
+    }
     setProfiles(prev => [...prev, newP].sort((a, b) => a.full_name.localeCompare(b.full_name)))
     setProfileMap((prev: any) => ({ ...prev, [data]: newP }))
-    setNewName(''); setNewEmail(''); setNewAgency(''); setNewRole('member')
+    setNewName(''); setNewEmail(''); setNewPhone(''); setNewAgency('')
+    setNewRole('member'); setNewNotes('')
     setShowCreateProfile(false); setCreatingProfile(false)
   }
 
@@ -357,7 +370,6 @@ export default function BuildOrgPage() {
 
   const opsTeams = teams.filter(t => t.name !== '__command__')
 
-  // Reusable person search block
   const PersonSearch = () => (
     <FormField label="Search Person">
       <div className="relative">
@@ -373,10 +385,8 @@ export default function BuildOrgPage() {
                   className="text-zinc-500 hover:text-red-400 text-lg leading-none">×</button>
               </div>
             ) : (
-              <input type="text" className="input"
-                placeholder="Type to search..."
-                value={assignSearch}
-                onChange={e => setAssignSearch(e.target.value)} />
+              <input type="text" className="input" placeholder="Type to search..."
+                value={assignSearch} onChange={e => setAssignSearch(e.target.value)} />
             )}
             {assignResults.length > 0 && !assignSelected && (
               <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-lg overflow-hidden z-10">
@@ -430,7 +440,7 @@ export default function BuildOrgPage() {
         </p>
       </div>
 
-      {/* Section tabs — larger */}
+      {/* Section tabs */}
       <div className="grid grid-cols-2 gap-2 mb-6">
         {TABS.map(tab => (
           <button key={tab.key}
@@ -466,6 +476,10 @@ export default function BuildOrgPage() {
             <FormField label="Email *">
               <input type="email" className="input" value={newEmail} onChange={e => setNewEmail(e.target.value)} />
             </FormField>
+            <FormField label="Phone">
+              <input type="tel" className="input" value={newPhone}
+                placeholder="313-555-0100" onChange={e => setNewPhone(e.target.value)} />
+            </FormField>
             <FormField label="Agency">
               <input type="text" className="input" value={newAgency} onChange={e => setNewAgency(e.target.value)} />
             </FormField>
@@ -476,18 +490,23 @@ export default function BuildOrgPage() {
                 <option value="admin">Admin</option>
               </select>
             </FormField>
+            <FormField label="Notes">
+              <input type="text" className="input" value={newNotes}
+                placeholder="Optional" onChange={e => setNewNotes(e.target.value)} />
+            </FormField>
           </div>
           {createError && <p className="text-xs text-red-400">{createError}</p>}
           <div className="flex gap-2">
             <Button onClick={createProfile} loading={creatingProfile} variant="secondary">Create Profile</Button>
-            <button onClick={() => setShowCreateProfile(false)} className="text-xs text-zinc-500 hover:text-zinc-300 px-3">Cancel</button>
+            <button onClick={() => setShowCreateProfile(false)}
+              className="text-xs text-zinc-500 hover:text-zinc-300 px-3">Cancel</button>
           </div>
         </div>
       )}
 
       {error && <p className="text-sm text-red-400 mb-4">{error}</p>}
 
-      {/* ═══ COMMAND STAFF ═══ */}
+      {/* COMMAND STAFF */}
       {activeTab === 'command' && (
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-4">
           <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider">Command Staff</p>
@@ -499,7 +518,6 @@ export default function BuildOrgPage() {
               ))}
             </select>
           </FormField>
-
           <FormField label="Person">
             <div className="relative">
               {cmdSelected ? (
@@ -534,11 +552,9 @@ export default function BuildOrgPage() {
               )}
             </div>
           </FormField>
-
           <Button onClick={assignCommandStaff} loading={saving} className="w-full">
             Assign to Command Staff
           </Button>
-
           {sectionAssignments('command').length > 0 && (
             <div className="space-y-2 border-t border-zinc-800 pt-4">
               {sectionAssignments('command').map(a => {
@@ -562,7 +578,7 @@ export default function BuildOrgPage() {
         </div>
       )}
 
-      {/* ═══ AGENCY REPS ═══ */}
+      {/* AGENCY REPS */}
       {activeTab === 'agency' && (
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-4">
           <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider">Agency / Organization Representatives</p>
@@ -600,10 +616,9 @@ export default function BuildOrgPage() {
         </div>
       )}
 
-      {/* ═══ OPERATIONS ═══ */}
+      {/* OPERATIONS */}
       {activeTab === 'ops' && (
         <div className="space-y-4">
-          {/* Groups */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
             <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider mb-3">Step 1 — Create Groups</p>
             <div className="flex gap-2">
@@ -626,7 +641,6 @@ export default function BuildOrgPage() {
             )}
           </div>
 
-          {/* Teams — clickable to assign to group */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
             <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider mb-3">Step 2 — Create Teams</p>
             <div className="space-y-3">
@@ -656,8 +670,7 @@ export default function BuildOrgPage() {
                             setEditingTeamId(isEditing ? null : t.id)
                             setEditingTeamGrpId(t.group_id ?? '')
                           }}
-                          className="text-sm text-zinc-200 text-left flex-1 hover:text-orange-400 transition-colors"
-                        >
+                          className="text-sm text-zinc-200 text-left flex-1 hover:text-orange-400 transition-colors">
                           {t.name}
                           {grp && <span className="text-zinc-500 text-xs ml-2">→ {grp.name}</span>}
                           {div && <span className="text-zinc-500 text-xs ml-2">→ {div.name}</span>}
@@ -692,7 +705,6 @@ export default function BuildOrgPage() {
             )}
           </div>
 
-          {/* Divisions */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
             <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider mb-3">Step 3 — Create Division or Branch (optional)</p>
             <div className="flex gap-2 mb-3">
@@ -724,7 +736,6 @@ export default function BuildOrgPage() {
             )}
           </div>
 
-          {/* Assign to Division */}
           {divisions.length > 0 && (groups.length > 0 || opsTeams.length > 0) && (
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
               <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider mb-3">Step 4 — Place into Division or Branch</p>
@@ -761,7 +772,6 @@ export default function BuildOrgPage() {
             </div>
           )}
 
-          {/* Assign Personnel */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-3">
             <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider">Step 5 — Assign Personnel</p>
             <PersonSearch />
@@ -823,7 +833,7 @@ export default function BuildOrgPage() {
         </div>
       )}
 
-      {/* ═══ PLANNING / LOGISTICS / FINANCE ═══ */}
+      {/* PLANNING / LOGISTICS / FINANCE */}
       {(['planning', 'logistics', 'finance'] as SectionTab[]).includes(activeTab) && (
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-4">
           <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider">

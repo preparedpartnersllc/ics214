@@ -23,6 +23,7 @@ export default function ProfilePage() {
   const [error, setError] = useState<string | null>(null)
 
   const [fullName, setFullName] = useState('')
+  const [phone, setPhone] = useState('')
   const [agency, setAgency] = useState('')
   const [unit, setUnit] = useState('')
   const [timezone, setTimezone] = useState('America/Detroit')
@@ -32,11 +33,18 @@ export default function ProfilePage() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
+
+      // Update last active
+      await supabase.from('profiles')
+        .update({ last_active_at: new Date().toISOString() })
+        .eq('id', user.id)
+
       const { data: p } = await supabase
         .from('profiles').select('*').eq('id', user.id).single()
       if (p) {
         setProfile(p)
         setFullName(p.full_name ?? '')
+        setPhone(p.phone ?? '')
         setAgency(p.default_agency ?? '')
         setUnit(p.default_unit ?? '')
         setTimezone(p.timezone ?? 'America/Detroit')
@@ -57,9 +65,11 @@ export default function ProfilePage() {
       .from('profiles')
       .update({
         full_name: fullName,
+        phone: phone || null,
         default_agency: agency || null,
         default_unit: unit || null,
         timezone,
+        last_active_at: new Date().toISOString(),
       })
       .eq('id', user.id)
 
@@ -79,20 +89,22 @@ export default function ProfilePage() {
       <HomeButton />
 
       <div className="mb-6">
-        <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider mb-1">
-          Account
-        </p>
+        <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider mb-1">Account</p>
         <h1 className="text-xl font-semibold text-zinc-100">Profile Settings</h1>
       </div>
 
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-4 mb-4">
-        <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider">
-          Personal Info
-        </p>
+        <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider">Personal Info</p>
 
         <FormField label="Full Name">
           <input type="text" className="input" value={fullName}
             onChange={e => setFullName(e.target.value)} />
+        </FormField>
+
+        <FormField label="Phone">
+          <input type="tel" className="input" value={phone}
+            placeholder="e.g. 313-555-0100"
+            onChange={e => setPhone(e.target.value)} />
         </FormField>
 
         <FormField label="Home Agency">
@@ -109,9 +121,7 @@ export default function ProfilePage() {
       </div>
 
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-4 mb-6">
-        <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider">
-          Preferences
-        </p>
+        <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider">Preferences</p>
 
         <FormField label="Timezone">
           <select className="input" value={timezone}
@@ -135,10 +145,20 @@ export default function ProfilePage() {
 
       <Button onClick={save} loading={saving}>Save Changes</Button>
 
-      <div className="mt-8 border-t border-zinc-800 pt-6">
+      <div className="mt-8 border-t border-zinc-800 pt-6 space-y-1">
         <p className="text-xs text-zinc-600 font-mono uppercase tracking-wider mb-2">Account</p>
         <p className="text-sm text-zinc-500">{profile.email}</p>
-        <p className="text-xs text-zinc-600 mt-1 capitalize">Role: {profile.role}</p>
+        <p className="text-xs text-zinc-600 capitalize">Role: {profile.role}</p>
+        <p className="text-xs text-zinc-600">
+          Status: <span className={profile.is_active ? 'text-green-500' : 'text-red-500'}>
+            {profile.is_active ? 'Active' : 'Inactive'}
+          </span>
+        </p>
+        {profile.last_active_at && (
+          <p className="text-xs text-zinc-600">
+            Last active: {new Date(profile.last_active_at).toLocaleString()}
+          </p>
+        )}
       </div>
     </div>
   )

@@ -12,6 +12,10 @@ export interface Profile {
   default_unit: string | null
   default_position: string | null
   timezone: string | null
+  phone: string | null
+  is_active: boolean
+  notes: string | null
+  last_active_at: string | null
   created_at: string
   updated_at: string
 }
@@ -59,6 +63,7 @@ export interface Team {
   id: string
   operational_period_id: string
   group_id: string | null
+  division_id: string | null
   name: string
   created_at: string
 }
@@ -71,6 +76,7 @@ export interface Assignment {
   ics_position: string
   home_agency: string
   home_unit: string | null
+  division_id: string | null
   assigned_by: string
   assigned_at: string
   profile?: Profile
