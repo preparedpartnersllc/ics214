@@ -216,28 +216,6 @@ export default function EventDetailPage() {
         </div>
       </header>
 
-      {/* ── PRIORITY STRIP (alerts / meetings) ───────────────── */}
-      {(event?.alert || event?.next_meeting) && (
-        <div className="bg-zinc-900 border-b border-zinc-800">
-          <div className="px-4 py-2 max-w-2xl mx-auto flex items-center gap-5 flex-wrap">
-            {event.alert && (
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
-                <span className="text-xs font-semibold text-red-400">{event.alert}</span>
-              </div>
-            )}
-            {event.next_meeting && (
-              <div className="flex items-center gap-1.5 text-xs text-zinc-400">
-                <svg className="w-3.5 h-3.5 text-orange-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
-                </svg>
-                Next meeting: <span className="font-semibold text-zinc-200 ml-1">{event.next_meeting}</span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* ── CONFIRMATION MODAL ────────────────────────────────── */}
       {confirming && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
@@ -300,7 +278,43 @@ export default function EventDetailPage() {
           </div>
         ) : null}
 
-        {/* 2 · MY ASSIGNMENT ────────────────────────────────── */}
+        {/* 2 · PRIORITY STRIP ──────────────────────────────── */}
+        <div className={`mb-6 border rounded-xl overflow-hidden ${
+          event?.alert
+            ? 'border-red-900/50 bg-red-950/20'
+            : 'border-zinc-800 bg-zinc-900/40'
+        }`}>
+          <div className="grid grid-cols-2 divide-x divide-zinc-800">
+            <div className="px-4 py-3 flex items-center gap-2.5">
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                event?.alert ? 'bg-red-500 animate-pulse' : 'bg-zinc-700'
+              }`} />
+              <div className="min-w-0">
+                <p className="text-xs text-zinc-600 uppercase tracking-wide font-medium">Alert</p>
+                <p className={`text-xs font-semibold mt-0.5 truncate ${
+                  event?.alert ? 'text-red-400' : 'text-zinc-600'
+                }`}>
+                  {event?.alert ?? 'No active alerts'}
+                </p>
+              </div>
+            </div>
+            <div className="px-4 py-3 flex items-center gap-2.5">
+              <svg className={`w-3.5 h-3.5 flex-shrink-0 ${event?.next_meeting ? 'text-orange-400' : 'text-zinc-700'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+              </svg>
+              <div className="min-w-0">
+                <p className="text-xs text-zinc-600 uppercase tracking-wide font-medium">Next Meeting</p>
+                <p className={`text-xs font-semibold mt-0.5 truncate ${
+                  event?.next_meeting ? 'text-zinc-200' : 'text-zinc-600'
+                }`}>
+                  {event?.next_meeting ?? 'None scheduled'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 3 · MY ASSIGNMENT ────────────────────────────────── */}
         {myAssignment ? (
           <section className="mb-8">
             <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">My Assignment</p>
@@ -370,7 +384,7 @@ export default function EventDetailPage() {
           </div>
         ) : null}
 
-        {/* 3 · PRIMARY CTA ──────────────────────────────────── */}
+        {/* 4 · PRIMARY CTA ──────────────────────────────────── */}
         {myAssignment && activeOp && (
           <div className="mb-8">
             <Link
@@ -386,16 +400,19 @@ export default function EventDetailPage() {
           </div>
         )}
 
-        {/* 4 · RECENT ACTIVITY ──────────────────────────────── */}
+        {/* 5 · RECENT ACTIVITY ──────────────────────────────── */}
         {recentEntries.length > 0 && activeOp && (
           <section className="mb-8">
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Recent Activity</p>
               <Link
                 href={`/events/${id}/op/${activeOp.id}/log`}
-                className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+                className="inline-flex items-center gap-1 text-xs font-medium text-zinc-500 hover:text-zinc-200 transition-colors py-1 px-2 -mr-2 rounded-lg hover:bg-zinc-800"
               >
-                View all →
+                View all
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
               </Link>
             </div>
             <div className="relative">
@@ -434,30 +451,27 @@ export default function EventDetailPage() {
                 <>
                   <Link
                     href={`/events/${id}/op/new`}
-                    className="inline-flex items-center gap-1 text-xs bg-zinc-800 text-zinc-300 border border-zinc-700 px-2.5 py-1.5 rounded-lg font-medium hover:bg-zinc-700 transition-all"
+                    className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
                   >
-                    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <path d="M12 5v14M5 12h14"/>
-                    </svg>
-                    Add Period
+                    + Add Period
                   </Link>
                   <Link
                     href={`/api/events/${id}/export`}
-                    className="text-xs bg-zinc-800 text-zinc-300 border border-zinc-700 px-2.5 py-1.5 rounded-lg font-medium hover:bg-zinc-700 transition-all"
+                    className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
                   >
                     Export All
                   </Link>
                   {event.status === 'active' ? (
                     <button
                       onClick={() => setConfirming('close-event')}
-                      className="text-xs bg-red-950/40 text-red-400 border border-red-900/60 px-2.5 py-1.5 rounded-lg font-medium hover:bg-red-950/70 transition-all"
+                      className="text-xs text-red-500/50 hover:text-red-400 transition-colors"
                     >
                       Close Event
                     </button>
                   ) : (
                     <button
                       onClick={() => setConfirming('reopen-event')}
-                      className="text-xs bg-zinc-800 text-zinc-300 border border-zinc-700 px-2.5 py-1.5 rounded-lg font-medium hover:bg-zinc-700 transition-all"
+                      className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
                     >
                       Reopen Event
                     </button>
