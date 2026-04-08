@@ -19,6 +19,7 @@ export const ICS_POSITIONS = [
   { section: 'Operations Section', label: 'Branch Deputy Director', value: 'branch_deputy_director' },
   { section: 'Operations Section', label: 'Division/Group Supervisor', value: 'division_group_supervisor' },
   { section: 'Operations Section', label: 'Air Operations Branch Director', value: 'air_ops_branch_director' },
+  { section: 'Operations Section', label: 'Team Member', value: 'team_member' },
   { section: 'Logistics Section', label: 'Logistics Section Chief', value: 'logistics_section_chief' },
   { section: 'Logistics Section', label: 'Logistics Section Deputy', value: 'logistics_section_deputy' },
   { section: 'Logistics Section', label: 'Support Branch Director', value: 'support_branch_director' },
@@ -37,8 +38,18 @@ export const ICS_POSITIONS = [
   { section: 'Finance/Admin Section', label: 'Cost Unit Leader', value: 'cost_unit_leader' },
 ]
 
+export const COMMAND_STAFF_POSITIONS = ICS_POSITIONS.filter(p => p.section === 'Command Staff')
+export const OPERATIONS_POSITIONS = ICS_POSITIONS.filter(p => p.section === 'Operations Section')
+export const PLANNING_POSITIONS = ICS_POSITIONS.filter(p => p.section === 'Planning Section')
+export const LOGISTICS_POSITIONS = ICS_POSITIONS.filter(p => p.section === 'Logistics Section')
+export const FINANCE_POSITIONS = ICS_POSITIONS.filter(p => p.section === 'Finance/Admin Section')
+
 export const POSITION_SECTIONS = [...new Set(ICS_POSITIONS.map(p => p.section))]
 
 export function getPositionLabel(value: string): string {
   return ICS_POSITIONS.find(p => p.value === value)?.label ?? value
+}
+
+export function getPositionsBySection(section: string) {
+  return ICS_POSITIONS.filter(p => p.section === section)
 }
