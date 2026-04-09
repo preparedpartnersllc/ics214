@@ -205,8 +205,15 @@ export default function EventDetailPage() {
 
   async function deactivateAlert(alertId: string) {
     const supabase = createClient()
-    await supabase.from('event_alerts').update({ is_active: false }).eq('id', alertId)
-    setAlerts(prev => prev.filter(a => a.id !== alertId))
+    const { error } = await supabase
+      .from('event_alerts')
+      .update({ is_active: false })
+      .eq('id', alertId)
+    if (!error) {
+      setAlerts(prev => prev.filter(a => a.id !== alertId))
+    } else {
+      console.error('Failed to dismiss alert:', error.message)
+    }
   }
 
   if (!event) return (
