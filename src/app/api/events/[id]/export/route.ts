@@ -97,7 +97,7 @@ export async function GET(
         for (const entry of userEntries) {
           lines.push(`  ${new Date(entry.entry_time).toLocaleString()}`)
           lines.push(`    ${entry.narrative}`)
-          lines.push(`    ${entry.reviewed ? '✓ Reviewed' : 'Pending review'}`)
+          lines.push('')
         }
       }
 

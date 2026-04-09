@@ -7,7 +7,6 @@ import { formatICSDateTime } from '@/lib/utils'
 import { getPositionLabel } from '@/lib/ics-positions'
 import Link from 'next/link'
 
-// Relative time — recalculated on every render tick
 function getRelativeTime(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime()
   const diffSec = Math.floor(diffMs / 1000)
@@ -18,7 +17,7 @@ function getRelativeTime(iso: string): string {
   if (diffMin < 60) return `${diffMin} mins ago`
   if (diffHr === 1) return '1 hr ago'
   if (diffHr < 24)  return `${diffHr} hrs ago`
-  return ''  // older entries: show only the ICS timestamp
+  return ''
 }
 
 export default function LogPage() {
@@ -40,7 +39,6 @@ export default function LogPage() {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [showToast, setShowToast] = useState(false)
 
-  // Force re-render every 30s so relative times stay accurate
   const [, forceUpdate] = useState(0)
   useEffect(() => {
     const id = setInterval(() => forceUpdate(n => n + 1), 30_000)
@@ -122,7 +120,6 @@ export default function LogPage() {
     setSubmitting(false)
     setTimeout(() => textareaRef.current?.focus(), 0)
 
-    // Toast feedback
     setShowToast(true)
     setTimeout(() => setShowToast(false), 2500)
   }
@@ -150,10 +147,10 @@ export default function LogPage() {
   }
 
   if (notAssigned) return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-[#0B0F14] flex items-center justify-center px-4">
       <div className="text-center">
-        <p className="text-zinc-400 mb-4">You are not assigned to this operational period.</p>
-        <Link href={`/events/${eventId}`} className="text-orange-500 text-sm hover:text-orange-400 transition-colors">
+        <p className="text-[#9CA3AF] mb-4">You are not assigned to this operational period.</p>
+        <Link href={`/events/${eventId}`} className="text-[#FF5A1F] text-sm hover:text-[#FF6A33] transition-colors">
           ← Back to Event
         </Link>
       </div>
@@ -161,36 +158,36 @@ export default function LogPage() {
   )
 
   if (!assignment) return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-      <p className="text-zinc-500 text-sm">Loading...</p>
+    <div className="min-h-screen bg-[#0B0F14] flex items-center justify-center">
+      <p className="text-[#6B7280] text-sm">Loading...</p>
     </div>
   )
 
   const canSubmit = narrative.trim().length >= 3
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex flex-col">
+    <div className="min-h-screen bg-[#0B0F14] flex flex-col">
 
       {/* ── STICKY CONTEXT HEADER ─────────────────────────────── */}
-      <header className="sticky top-0 z-20 bg-zinc-950/95 backdrop-blur-sm border-b border-zinc-800/70">
+      <header className="sticky top-0 z-20 bg-[#0B0F14]/95 backdrop-blur-sm border-b border-[#232B36]/70">
         <div className="px-4 py-2.5 sm:py-3 max-w-2xl mx-auto flex items-center justify-between gap-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-mono font-bold text-orange-500 tracking-wide">ICS 214</span>
-              <span className="text-zinc-700 text-xs">·</span>
-              <span className="text-sm font-semibold text-zinc-100 truncate">{event?.name}</span>
+              <span className="text-xs font-mono font-bold text-[#FF5A1F] tracking-wide">ICS 214</span>
+              <span className="text-[#232B36] text-xs">·</span>
+              <span className="text-sm font-semibold text-[#E5E7EB] truncate">{event?.name}</span>
             </div>
-            <p className="hidden sm:block text-xs text-zinc-500 mt-0.5">
+            <p className="hidden sm:block text-xs text-[#6B7280] mt-0.5">
               OP {op?.period_number}
-              <span className="text-zinc-700 mx-1.5">·</span>
+              <span className="text-[#232B36] mx-1.5">·</span>
               {getPositionLabel(assignment?.ics_position)}
-              <span className="text-zinc-700 mx-1.5">·</span>
-              <span className="text-zinc-400">{profile?.full_name}</span>
+              <span className="text-[#232B36] mx-1.5">·</span>
+              <span className="text-[#9CA3AF]">{profile?.full_name}</span>
             </p>
           </div>
           <Link
             href={`/events/${eventId}`}
-            className="flex-shrink-0 inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-200 transition-colors"
+            className="flex-shrink-0 inline-flex items-center gap-1.5 text-xs text-[#6B7280] hover:text-[#E5E7EB] transition-colors"
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M19 12H5M12 5l-7 7 7 7"/>
@@ -205,10 +202,10 @@ export default function LogPage() {
 
         {/* PRIMARY INPUT AREA */}
         <form onSubmit={handleSubmit} className="mb-10">
-          <div className={`bg-zinc-900 border rounded-xl overflow-hidden transition-all duration-150 ${
+          <div className={`bg-[#161D26] border rounded-2xl overflow-hidden transition-all duration-150 ${
             validationError
-              ? 'border-red-700/60 shadow-[0_0_0_3px_rgba(220,38,38,0.12)]'
-              : 'border-zinc-600 focus-within:border-orange-500 focus-within:shadow-[0_0_0_3px_rgba(234,88,12,0.18)]'
+              ? 'border-[#EF4444]/60 shadow-[0_0_0_3px_rgba(239,68,68,0.12)]'
+              : 'border-[#232B36] focus-within:border-[#FF5A1F] focus-within:shadow-[0_0_0_3px_rgba(255,90,31,0.12)]'
           }`}>
             <textarea
               ref={textareaRef}
@@ -217,20 +214,20 @@ export default function LogPage() {
               onKeyDown={handleKeyDown}
               rows={4}
               placeholder="What happened, what was assigned, completed, or communicated?"
-              className="w-full bg-transparent px-4 pt-4 pb-2 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none resize-none leading-relaxed"
+              className="w-full bg-transparent px-4 pt-4 pb-2 text-sm text-[#E5E7EB] placeholder:text-[#6B7280] outline-none resize-none leading-relaxed"
               autoFocus
             />
-            <div className="border-t border-zinc-800 px-3 py-3 sm:px-4 sm:py-2.5 sm:flex sm:items-center sm:justify-between gap-3">
-              <span className="hidden sm:block text-xs text-zinc-600 select-none">
+            <div className="border-t border-[#232B36] px-3 py-3 sm:px-4 sm:py-2.5 sm:flex sm:items-center sm:justify-between gap-3">
+              <span className="hidden sm:block text-xs text-[#6B7280] select-none">
                 {narrative.trim().length > 0
                   ? `${narrative.length} chars`
-                  : <><kbd className="font-mono bg-zinc-800 px-1 py-0.5 rounded text-zinc-500">⌘</kbd> <kbd className="font-mono bg-zinc-800 px-1 py-0.5 rounded text-zinc-500">↵</kbd> to submit</>
+                  : <><kbd className="font-mono bg-[#121821] px-1 py-0.5 rounded text-[#6B7280]">⌘</kbd> <kbd className="font-mono bg-[#121821] px-1 py-0.5 rounded text-[#6B7280]">↵</kbd> to submit</>
                 }
               </span>
               <button
                 type="submit"
                 disabled={submitting || !canSubmit}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-500 active:bg-orange-700 active:scale-[0.96] disabled:opacity-35 disabled:pointer-events-none text-white px-4 py-3 sm:py-2 rounded-lg text-sm font-semibold transition-all shadow-sm"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-[#FF5A1F] hover:bg-[#FF6A33] active:bg-[#E14A12] active:scale-[0.96] disabled:opacity-35 disabled:pointer-events-none text-white px-4 py-3 sm:py-2 rounded-lg text-sm font-semibold transition-all shadow-sm"
               >
                 {submitting ? (
                   <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
@@ -248,7 +245,7 @@ export default function LogPage() {
           </div>
 
           {validationError && (
-            <p className="text-xs text-red-400 mt-2 px-1 flex items-center gap-1.5">
+            <p className="text-xs text-[#EF4444] mt-2 px-1 flex items-center gap-1.5">
               <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>
               </svg>
@@ -256,34 +253,34 @@ export default function LogPage() {
             </p>
           )}
           {submitError && (
-            <p className="text-xs text-red-400 mt-2 px-1">{submitError}</p>
+            <p className="text-xs text-[#EF4444] mt-2 px-1">{submitError}</p>
           )}
         </form>
 
         {/* ACTIVITY TIMELINE */}
         <div>
           <div className="flex items-center justify-between mb-4">
-            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">
+            <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide">
               Activity Timeline
             </p>
-            <span className="text-xs font-medium text-zinc-400 bg-zinc-800 border border-zinc-700 px-2.5 py-0.5 rounded-full tabular-nums">
+            <span className="text-xs font-medium text-[#9CA3AF] bg-[#161D26] border border-[#232B36] px-2.5 py-0.5 rounded-full tabular-nums">
               {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
             </span>
           </div>
 
           {entries.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="w-10 h-10 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-3">
-                <svg className="w-4 h-4 text-zinc-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <div className="w-10 h-10 rounded-full bg-[#161D26] border border-[#232B36] flex items-center justify-center mb-3">
+                <svg className="w-4 h-4 text-[#6B7280]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
                 </svg>
               </div>
-              <p className="text-sm text-zinc-500">No activity logged yet.</p>
-              <p className="text-xs text-zinc-600 mt-1">Start by adding your first entry above.</p>
+              <p className="text-sm text-[#6B7280]">No activity logged yet.</p>
+              <p className="text-xs text-[#6B7280]/70 mt-1">Start by adding your first entry above.</p>
             </div>
           ) : (
             <div className="relative">
-              <div className="absolute left-[5px] top-2 bottom-2 w-px bg-zinc-800" />
+              <div className="absolute left-[5px] top-2 bottom-2 w-px bg-[#232B36]" />
 
               <div className="space-y-0">
                 {entries.map(entry => {
@@ -294,87 +291,68 @@ export default function LogPage() {
                       key={entry.id}
                       className={`relative flex gap-4 pb-6 group ${newEntryId === entry.id ? 'animate-entry' : ''}`}
                     >
-                      {/* Timeline dot — w-2.5 = 10px, center at 5px, aligns with left-[5px] line */}
                       <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1 relative z-10 transition-colors ring-1 ${
-                        entry.reviewed
-                          ? 'bg-green-500/60 ring-green-500/30'
-                          : newEntryId === entry.id
-                          ? 'bg-orange-500 ring-orange-500/40'
-                          : 'bg-zinc-700 ring-zinc-600'
+                        newEntryId === entry.id
+                          ? 'bg-[#FF5A1F] ring-[#FF5A1F]/40'
+                          : 'bg-[#232B36] ring-[#3a4555]'
                       }`} />
 
-                      {/* Entry content */}
                       <div className="flex-1 min-w-0">
-
-                        {/* Time row */}
                         <div className="flex items-start justify-between gap-3 mb-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             {relTime ? (
                               <>
-                                <span className="text-xs font-semibold text-zinc-300">{relTime}</span>
-                                <time className="text-xs font-mono text-orange-400/70">
+                                <span className="text-xs font-semibold text-[#E5E7EB]">{relTime}</span>
+                                <time className="text-xs font-mono text-[#FF5A1F]/70">
                                   {formatICSDateTime(entry.entry_time)}
                                 </time>
                               </>
                             ) : (
-                              <time className="text-xs font-mono text-orange-400 font-medium">
+                              <time className="text-xs font-mono text-[#FF5A1F] font-medium">
                                 {formatICSDateTime(entry.entry_time)}
                               </time>
                             )}
                           </div>
 
-                          {entry.reviewed ? (
-                            <span className="flex items-center gap-1 text-xs text-green-500/80 flex-shrink-0">
-                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                <path d="M20 6L9 17l-5-5"/>
-                              </svg>
-                              Reviewed
-                            </span>
-                          ) : (
-                            <button
-                              onClick={() => handleDeleteTap(entry.id)}
-                              title={isPending ? 'Tap again to confirm delete' : 'Delete entry'}
-                              className={`flex-shrink-0 flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-all touch-manipulation ${
-                                isPending
-                                  ? 'bg-red-900/50 text-red-400 ring-1 ring-red-700/50'
-                                  : 'text-zinc-700 hover:text-zinc-500 opacity-40 hover:opacity-100'
-                              }`}
-                            >
-                              {isPending ? (
-                                <>
-                                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="M18 6L6 18M6 6l12 12"/>
-                                  </svg>
-                                  Confirm
-                                </>
-                              ) : (
+                          <button
+                            onClick={() => handleDeleteTap(entry.id)}
+                            title={isPending ? 'Tap again to confirm delete' : 'Delete entry'}
+                            className={`flex-shrink-0 flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-all touch-manipulation ${
+                              isPending
+                                ? 'bg-[#EF4444]/20 text-[#EF4444] ring-1 ring-[#EF4444]/40'
+                                : 'text-[#6B7280] hover:text-[#9CA3AF] opacity-40 hover:opacity-100'
+                            }`}
+                          >
+                            {isPending ? (
+                              <>
                                 <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+                                  <path d="M18 6L6 18M6 6l12 12"/>
                                 </svg>
-                              )}
-                            </button>
-                          )}
+                                Confirm
+                              </>
+                            ) : (
+                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+                              </svg>
+                            )}
+                          </button>
                         </div>
 
-                        {/* Narrative */}
-                        <p className="text-sm text-zinc-300 leading-relaxed">{entry.narrative}</p>
+                        <p className="text-sm text-[#E5E7EB] leading-relaxed">{entry.narrative}</p>
+                        <p className="text-xs text-[#6B7280] mt-1.5">{profile?.full_name}</p>
 
-                        {/* Author */}
-                        <p className="text-xs text-zinc-600 mt-1.5">{profile?.full_name}</p>
-
-                        {/* Inline delete confirmation */}
                         {isPending && (
-                          <div className="flex items-center gap-3 mt-2 pt-2 border-t border-zinc-800">
-                            <span className="text-xs text-red-400/90">Delete this entry?</span>
+                          <div className="flex items-center gap-3 mt-2 pt-2 border-t border-[#232B36]">
+                            <span className="text-xs text-[#EF4444]/90">Delete this entry?</span>
                             <button
                               onClick={() => deleteEntry(entry.id)}
-                              className="text-xs font-semibold text-red-400 hover:text-red-300 transition-colors"
+                              className="text-xs font-semibold text-[#EF4444] hover:text-red-300 transition-colors"
                             >
                               Yes, delete
                             </button>
                             <button
                               onClick={() => setPendingDeleteId(null)}
-                              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                              className="text-xs text-[#6B7280] hover:text-[#9CA3AF] transition-colors"
                             >
                               Cancel
                             </button>
@@ -393,9 +371,9 @@ export default function LogPage() {
       {/* ── SUCCESS TOAST ─────────────────────────────────────── */}
       {showToast && (
         <div className="fixed bottom-8 left-1/2 z-50 pointer-events-none animate-toast">
-          <div className="flex items-center gap-2.5 bg-zinc-900 border border-zinc-600 text-zinc-100 text-sm font-medium px-5 py-3 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] whitespace-nowrap">
-            <span className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
-              <svg className="w-3 h-3 text-green-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+          <div className="flex items-center gap-2.5 bg-[#161D26] border border-[#232B36] text-[#E5E7EB] text-sm font-medium px-5 py-3 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] whitespace-nowrap">
+            <span className="w-5 h-5 rounded-full bg-[#22C55E]/20 flex items-center justify-center flex-shrink-0">
+              <svg className="w-3 h-3 text-[#22C55E]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                 <path d="M20 6L9 17l-5-5"/>
               </svg>
             </span>

@@ -50,19 +50,19 @@ export default function NewEventPage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 px-4 py-8 max-w-2xl mx-auto">
+    <div className="min-h-screen bg-[#0B0F14] px-4 py-8 max-w-2xl mx-auto">
       <HomeButton />
 
       <div className="mb-6">
-        <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider mb-1">Admin</p>
-        <h1 className="text-xl font-semibold text-zinc-100">New Event</h1>
-        <p className="text-sm text-zinc-500 mt-1">
+        <p className="text-xs text-[#6B7280] font-mono uppercase tracking-wider mb-1">Admin</p>
+        <h1 className="text-xl font-semibold text-[#E5E7EB]">New Event</h1>
+        <p className="text-sm text-[#6B7280] mt-1">
           Operational periods are added after the event is created.
         </p>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-4">
+        <div className="bg-[#161D26] border border-[#232B36] rounded-2xl p-5 space-y-4">
           <FormField label="Incident / Event Name *" error={errors.name?.message}>
             <input type="text" className="input"
               placeholder="e.g. 2026 Detroit Auto Show"
@@ -87,12 +87,12 @@ export default function NewEventPage() {
           </FormField>
         </div>
 
-        {error && <p className="text-sm text-red-400">{error}</p>}
+        {error && <p className="text-sm text-[#EF4444]">{error}</p>}
 
         <div className="flex gap-3">
           <Link href="/events">
             <button type="button"
-              className="bg-zinc-800 text-zinc-200 border border-zinc-700 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-zinc-700 transition-colors">
+              className="bg-transparent text-[#9CA3AF] border border-[#232B36] px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-[#161D26] hover:border-[#3a4555] transition-colors">
               Cancel
             </button>
           </Link>

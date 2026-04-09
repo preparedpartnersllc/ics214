@@ -12,20 +12,20 @@ function NavCard({ href, icon, title, description, accent = false }: {
   accent?: boolean
 }) {
   return (
-    <Link href={href} className={`group flex flex-col rounded-xl p-4 border transition-all ${
+    <Link href={href} className={`group flex flex-col rounded-2xl p-4 border transition-all ${
       accent
-        ? 'bg-orange-950/20 border-orange-900/40 hover:border-orange-700/60 hover:bg-orange-950/30'
-        : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800/50'
+        ? 'bg-[#FF5A1F]/5 border-[#FF5A1F]/20 hover:border-[#FF5A1F]/40 hover:bg-[#FF5A1F]/10'
+        : 'bg-[#161D26] border-[#232B36] hover:border-[#3a4555] hover:bg-[#1a2235]'
     }`}>
       <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-3 transition-colors ${
         accent
-          ? 'bg-orange-900/40 text-orange-400 group-hover:bg-orange-900/60'
-          : 'bg-zinc-800 text-zinc-400 group-hover:bg-zinc-700'
+          ? 'bg-[#FF5A1F]/15 text-[#FF5A1F] group-hover:bg-[#FF5A1F]/25'
+          : 'bg-[#121821] text-[#9CA3AF] group-hover:bg-[#232B36]'
       }`}>
         {icon}
       </div>
-      <p className={`font-medium text-sm ${accent ? 'text-orange-300' : 'text-zinc-100'}`}>{title}</p>
-      <p className={`text-xs mt-0.5 ${accent ? 'text-orange-600/70' : 'text-zinc-500'}`}>{description}</p>
+      <p className={`font-medium text-sm ${accent ? 'text-[#FF6A33]' : 'text-[#E5E7EB]'}`}>{title}</p>
+      <p className={`text-xs mt-0.5 ${accent ? 'text-[#FF5A1F]/60' : 'text-[#6B7280]'}`}>{description}</p>
     </Link>
   )
 }
@@ -81,18 +81,18 @@ export default async function DashboardPage() {
   const isAdmin = profile.role === 'admin'
 
   return (
-    <div className="min-h-screen bg-zinc-950 px-4 py-10 max-w-2xl mx-auto">
+    <div className="min-h-screen bg-[#0B0F14] px-4 py-10 max-w-2xl mx-auto">
 
       {/* Header */}
       <div className="mb-10">
         <div className="flex items-center gap-2 mb-2">
-          <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
-          <span className="text-orange-500 text-xs font-semibold uppercase tracking-widest">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#FF5A1F]" />
+          <span className="text-[#FF5A1F] text-xs font-semibold uppercase tracking-widest">
             Incident Management
           </span>
         </div>
-        <h1 className="text-2xl font-semibold text-zinc-100 tracking-tight">{profile.full_name}</h1>
-        <p className="text-zinc-500 text-sm mt-1 capitalize">{profile.role}</p>
+        <h1 className="text-2xl font-semibold text-[#E5E7EB] tracking-tight">{profile.full_name}</h1>
+        <p className="text-[#6B7280] text-sm mt-1 capitalize">{profile.role}</p>
       </div>
 
       {/* Nav grid */}
@@ -163,13 +163,13 @@ export default async function DashboardPage() {
 
       {/* Events section */}
       <div>
-        <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">
+        <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide mb-3">
           {profile.role === 'member' ? 'My Active Events' : 'Recent Events'}
         </p>
 
         {displayEvents.length === 0 ? (
-          <div className="bg-zinc-900 border border-zinc-800 border-dashed rounded-xl p-8 text-center">
-            <p className="text-zinc-600 text-sm">
+          <div className="bg-[#161D26] border border-[#232B36] border-dashed rounded-2xl p-8 text-center">
+            <p className="text-[#6B7280] text-sm">
               {profile.role === 'member' ? 'Not assigned to any active events.' : 'No events yet.'}
             </p>
           </div>
@@ -177,22 +177,22 @@ export default async function DashboardPage() {
           <div className="space-y-2">
             {displayEvents.map((event: any) => (
               <Link key={event.id} href={`/events/${event.id}`}
-                className="flex items-center justify-between bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3.5 hover:border-zinc-700 hover:bg-zinc-800/50 transition-all group">
+                className="flex items-center justify-between bg-[#161D26] border border-[#232B36] rounded-2xl px-4 py-3.5 hover:border-[#3a4555] hover:bg-[#1a2235] transition-all group">
                 <div className="min-w-0">
-                  <p className="text-zinc-100 font-medium text-sm truncate">{event.name}</p>
-                  {event.location && <p className="text-zinc-500 text-xs mt-0.5 truncate">{event.location}</p>}
+                  <p className="text-[#E5E7EB] font-medium text-sm truncate">{event.name}</p>
+                  {event.location && <p className="text-[#6B7280] text-xs mt-0.5 truncate">{event.location}</p>}
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0 ml-3">
                   <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ring-1 ring-inset ${
                     event.status === 'active'
-                      ? 'bg-green-500/10 text-green-400 ring-green-500/20'
+                      ? 'bg-[#22C55E]/10 text-[#22C55E] ring-[#22C55E]/20'
                       : event.status === 'closed'
-                      ? 'bg-zinc-500/10 text-zinc-400 ring-zinc-500/20'
-                      : 'bg-zinc-500/10 text-zinc-500 ring-zinc-700/30'
+                      ? 'bg-[#6B7280]/10 text-[#9CA3AF] ring-[#9CA3AF]/20'
+                      : 'bg-[#6B7280]/10 text-[#6B7280] ring-[#6B7280]/20'
                   }`}>
                     {event.status}
                   </span>
-                  <svg className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition-colors flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg className="w-4 h-4 text-[#6B7280] group-hover:text-[#9CA3AF] transition-colors flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M9 18l6-6-6-6"/>
                   </svg>
                 </div>

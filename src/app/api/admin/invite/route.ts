@@ -21,10 +21,22 @@ export async function POST(request: Request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { error } = await adminSupabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/reset-password`,
+  const { error } = await adminSupabase.auth.admin.inviteUserByEmail(email, {
+    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/login`,
   })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  if (error) {
+    // User already exists — send a password reset link instead so they can log in
+    const alreadyExists = error.message.toLowerCase().includes('already') ||
+      error.message.toLowerCase().includes('database error')
+    if (alreadyExists) {
+      const { error: resetError } = await adminSupabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/login`,
+      })
+      if (resetError) return NextResponse.json({ error: resetError.message }, { status: 400 })
+      return NextResponse.json({ success: true })
+    }
+    return NextResponse.json({ error: error.message }, { status: 400 })
+  }
   return NextResponse.json({ success: true })
 }

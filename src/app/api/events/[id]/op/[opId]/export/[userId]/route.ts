@@ -1,4 +1,4 @@
- import { NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getPositionLabel } from '@/lib/ics-positions'
 
@@ -14,7 +14,6 @@ export async function GET(
   const { data: profile } = await supabase
     .from('profiles').select('role').eq('id', user.id).single()
 
-  // Allow supervisors, admins, or the person themselves
   const isSelf = user.id === userId
   const isPrivileged = profile?.role === 'admin' || profile?.role === 'supervisor'
   if (!isSelf && !isPrivileged) {
@@ -72,7 +71,6 @@ export async function GET(
     for (const entry of (entries ?? [])) {
       lines.push(new Date(entry.entry_time).toLocaleString())
       lines.push(`  ${entry.narrative}`)
-      lines.push(`  ${entry.reviewed ? '✓ Reviewed' : 'Pending review'}`)
       lines.push('')
     }
   }

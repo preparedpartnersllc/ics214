@@ -90,9 +90,6 @@ export interface ActivityEntry {
   user_id: string
   entry_time: string
   narrative: string
-  reviewed: boolean
-  reviewed_by: string | null
-  reviewed_at: string | null
   created_at: string
   updated_at: string
   profile?: Profile

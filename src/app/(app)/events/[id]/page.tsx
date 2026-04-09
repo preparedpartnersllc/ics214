@@ -45,6 +45,7 @@ export default function EventDetailPage() {
   const [alerts, setAlerts] = useState<any[]>([])
   const [expandedOps, setExpandedOps] = useState<Set<string>>(new Set())
   const [confirming, setConfirming] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
   // Alert form state
@@ -137,10 +138,29 @@ export default function EventDetailPage() {
 
   async function closeEvent() {
     const supabase = createClient()
+    // Close all active operational periods first
+    const activeOpIds = ops.filter(o => o.status === 'active').map(o => o.id)
+    if (activeOpIds.length > 0) {
+      await supabase.from('operational_periods').update({ status: 'closed' }).in('id', activeOpIds)
+      setOps(prev => prev.map(op => ({ ...op, status: 'closed' })))
+    }
     await supabase.from('events').update({ status: 'closed' }).eq('id', id)
     setEvent((prev: any) => ({ ...prev, status: 'closed' }))
     setConfirming(null)
     router.push('/dashboard')
+  }
+
+  async function deleteEvent() {
+    setDeleteError(null)
+    const supabase = createClient()
+    // DB has CASCADE deletes on all child tables — one delete is enough
+    const { error } = await supabase.from('events').delete().eq('id', id)
+    if (error) {
+      setDeleteError(error.message)
+      setConfirming(null)
+      return
+    }
+    router.push('/events')
   }
 
   async function reopenEvent() {
@@ -217,8 +237,8 @@ export default function EventDetailPage() {
   }
 
   if (!event) return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-      <p className="text-zinc-500 text-sm">Loading...</p>
+    <div className="min-h-screen bg-[#0B0F14] flex items-center justify-center">
+      <p className="text-[#6B7280] text-sm">Loading...</p>
     </div>
   )
 
@@ -249,14 +269,14 @@ export default function EventDetailPage() {
     : null
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex flex-col">
+    <div className="min-h-screen bg-[#0B0F14] flex flex-col">
 
       {/* ── STICKY HEADER ─────────────────────────────────────── */}
-      <header className="sticky top-0 z-20 bg-zinc-950/95 backdrop-blur-sm border-b border-zinc-800/70">
+      <header className="sticky top-0 z-20 bg-[#0B0F14]/95 backdrop-blur-sm border-b border-[#232B36]/70">
         <div className="px-4 py-2.5 sm:py-3 max-w-2xl mx-auto flex items-center justify-between gap-4">
           <Link
             href="/events"
-            className="flex-shrink-0 inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-200 transition-colors"
+            className="flex-shrink-0 inline-flex items-center gap-1.5 text-xs text-[#6B7280] hover:text-[#E5E7EB] transition-colors"
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M19 12H5M12 5l-7 7 7 7"/>
@@ -264,22 +284,22 @@ export default function EventDetailPage() {
             Events
           </Link>
           <div className="min-w-0 text-right">
-            <p className="text-sm font-semibold text-zinc-100 truncate">{event.name}</p>
+            <p className="text-sm font-semibold text-[#E5E7EB] truncate">{event.name}</p>
             <div className="flex items-center justify-end gap-1.5 mt-0.5 flex-wrap">
               {event.incident_number && (
-                <span className="text-xs font-mono text-zinc-600">#{event.incident_number}</span>
+                <span className="text-xs font-mono text-[#6B7280]">#{event.incident_number}</span>
               )}
               {activeOp ? (
-                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 ring-1 ring-inset ring-green-500/20">
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#22C55E]/10 text-[#22C55E] ring-1 ring-inset ring-[#22C55E]/20">
                   OP {activeOp.period_number} Active
                 </span>
               ) : (
-                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-zinc-500/10 text-zinc-500 ring-1 ring-inset ring-zinc-700/30 capitalize">
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#6B7280]/10 text-[#6B7280] ring-1 ring-inset ring-[#6B7280]/20 capitalize">
                   {event.status}
                 </span>
               )}
               {profile?.role && profile.role !== 'member' && (
-                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-400 ring-1 ring-inset ring-orange-500/20 capitalize">
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#FF5A1F]/10 text-[#FF5A1F] ring-1 ring-inset ring-[#FF5A1F]/20 capitalize">
                   {profile.role}
                 </span>
               )}
@@ -291,11 +311,13 @@ export default function EventDetailPage() {
       {/* ── CONFIRMATION MODAL ────────────────────────────────── */}
       {confirming && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
-          <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 max-w-sm w-full">
-            <p className="text-zinc-100 font-medium mb-2">Are you sure?</p>
-            <p className="text-zinc-400 text-sm mb-6">
+          <div className="bg-[#161D26] border border-[#232B36] rounded-2xl p-6 max-w-sm w-full">
+            <p className="text-[#E5E7EB] font-medium mb-2">Are you sure?</p>
+            <p className="text-[#9CA3AF] text-sm mb-6">
               {confirming === 'close-event'
-                ? 'This will close the entire event. You can reopen it later.'
+                ? 'This will close the event and all active operational periods. You can reopen it later.'
+                : confirming === 'delete-event'
+                ? 'This will permanently delete the event and all associated data. This cannot be undone.'
                 : confirming.startsWith('close-op-')
                 ? 'This will demobilize this operational period. You can reopen it later.'
                 : confirming === 'reopen-event'
@@ -306,17 +328,18 @@ export default function EventDetailPage() {
               <button
                 onClick={() => {
                   if (confirming === 'close-event') closeEvent()
+                  else if (confirming === 'delete-event') deleteEvent()
                   else if (confirming === 'reopen-event') reopenEvent()
                   else if (confirming.startsWith('close-op-')) closeOP(confirming.replace('close-op-', ''))
                   else if (confirming.startsWith('reopen-op-')) reopenOP(confirming.replace('reopen-op-', ''))
                 }}
-                className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-500 transition-colors"
+                className="flex-1 bg-[#EF4444] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-400 transition-colors"
               >
-                Confirm
+                {confirming === 'delete-event' ? 'Delete' : 'Confirm'}
               </button>
               <button
                 onClick={() => setConfirming(null)}
-                className="flex-1 bg-zinc-800 text-zinc-200 border border-zinc-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-zinc-700 transition-colors"
+                className="flex-1 bg-transparent text-[#9CA3AF] border border-[#232B36] px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#1a2235] transition-colors"
               >
                 Cancel
               </button>
@@ -330,34 +353,34 @@ export default function EventDetailPage() {
 
         {/* 1 · ACTIVE OP STRIP ──────────────────────────────── */}
         {activeOp ? (
-          <div className="mb-6 bg-orange-500/5 border border-orange-500/15 rounded-xl px-4 py-3.5 flex items-center justify-between gap-4">
+          <div className="mb-6 bg-[#FF5A1F]/5 border border-[#FF5A1F]/15 rounded-2xl px-4 py-3.5 flex items-center justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold text-orange-400 uppercase tracking-wide">Active Period</p>
-              <p className="text-sm font-semibold text-zinc-200 mt-0.5">
+              <p className="text-xs font-semibold text-[#FF5A1F] uppercase tracking-wide">Active Period</p>
+              <p className="text-sm font-semibold text-[#E5E7EB] mt-0.5">
                 Operational Period {activeOp.period_number}
               </p>
             </div>
             <div className="text-right flex-shrink-0">
-              <p className="text-xs text-zinc-600 mb-0.5">Window</p>
-              <p className="text-xs font-mono text-zinc-400">
+              <p className="text-xs text-[#6B7280] mb-0.5">Window</p>
+              <p className="text-xs font-mono text-[#9CA3AF]">
                 {formatICSTime(activeOp.op_period_start)} — {formatICSTime(activeOp.op_period_end)}
               </p>
             </div>
           </div>
         ) : ops.length > 0 ? (
-          <div className="mb-6 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3.5">
-            <p className="text-sm text-zinc-500">No active operational period.</p>
+          <div className="mb-6 bg-[#161D26] border border-[#232B36] rounded-2xl px-4 py-3.5">
+            <p className="text-sm text-[#6B7280]">No active operational period.</p>
           </div>
         ) : null}
 
         {/* 2 · PRIORITY STRIP ──────────────────────────────── */}
-        <div className={`mb-6 border rounded-xl overflow-hidden transition-all ${
-          topAlert?.severity === 'critical' ? 'border-red-800/70 bg-red-950/25' :
-          topAlert?.severity === 'warning'  ? 'border-orange-800/60 bg-orange-950/15' :
-          topAlert                          ? 'border-zinc-700 bg-zinc-900/60' :
-                                              'border-zinc-800 bg-zinc-900/40'
+        <div className={`mb-6 border rounded-2xl overflow-hidden transition-all ${
+          topAlert?.severity === 'critical' ? 'border-[#EF4444]/40 bg-[#EF4444]/5' :
+          topAlert?.severity === 'warning'  ? 'border-[#F59E0B]/35 bg-[#F59E0B]/5' :
+          topAlert                          ? 'border-[#3B82F6]/30 bg-[#3B82F6]/5' :
+                                              'border-[#232B36] bg-[#161D26]'
         }`}>
-          <div className="grid grid-cols-2 divide-x divide-zinc-800/80">
+          <div className="grid grid-cols-2 divide-x divide-[#232B36]/80">
 
             {/* Alert cell — clickable when an alert exists */}
             <button
@@ -369,24 +392,24 @@ export default function EventDetailPage() {
               }`}
             >
               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                topAlert?.severity === 'critical' ? 'bg-red-500 animate-pulse' :
-                topAlert?.severity === 'warning'  ? 'bg-orange-500 animate-pulse' :
-                topAlert                          ? 'bg-zinc-400' :
-                                                    'bg-zinc-700'
+                topAlert?.severity === 'critical' ? 'bg-[#EF4444] animate-pulse' :
+                topAlert?.severity === 'warning'  ? 'bg-[#F59E0B] animate-pulse' :
+                topAlert                          ? 'bg-[#3B82F6]' :
+                                                    'bg-[#232B36]'
               }`} />
               <div className="min-w-0 flex-1">
-                <p className="text-xs text-zinc-600 uppercase tracking-wide font-medium">Alert</p>
+                <p className="text-xs text-[#6B7280] uppercase tracking-wide font-medium">Alert</p>
                 <p className={`text-xs font-semibold mt-0.5 truncate ${
-                  topAlert?.severity === 'critical' ? 'text-red-400' :
-                  topAlert?.severity === 'warning'  ? 'text-orange-400' :
-                  topAlert                          ? 'text-zinc-300' :
-                                                      'text-zinc-600'
+                  topAlert?.severity === 'critical' ? 'text-[#EF4444]' :
+                  topAlert?.severity === 'warning'  ? 'text-[#F59E0B]' :
+                  topAlert                          ? 'text-[#3B82F6]' :
+                                                      'text-[#6B7280]'
                 }`}>
                   {topAlert?.title ?? 'No active alerts'}
                 </p>
               </div>
               {topAlert && (
-                <svg className={`w-3 h-3 flex-shrink-0 text-zinc-600 transition-transform ${alertExpanded ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <svg className={`w-3 h-3 flex-shrink-0 text-[#6B7280] transition-transform ${alertExpanded ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path d="M6 9l6 6 6-6"/>
                 </svg>
               )}
@@ -394,13 +417,13 @@ export default function EventDetailPage() {
 
             {/* Next meeting cell */}
             <div className="px-4 py-3 flex items-center gap-2.5">
-              <svg className={`w-3.5 h-3.5 flex-shrink-0 ${event?.next_meeting ? 'text-orange-400' : 'text-zinc-700'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg className={`w-3.5 h-3.5 flex-shrink-0 ${event?.next_meeting ? 'text-[#FF5A1F]' : 'text-[#232B36]'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
               </svg>
               <div className="min-w-0">
-                <p className="text-xs text-zinc-600 uppercase tracking-wide font-medium">Next Meeting</p>
+                <p className="text-xs text-[#6B7280] uppercase tracking-wide font-medium">Next Meeting</p>
                 <p className={`text-xs font-semibold mt-0.5 truncate ${
-                  event?.next_meeting ? 'text-zinc-200' : 'text-zinc-600'
+                  event?.next_meeting ? 'text-[#E5E7EB]' : 'text-[#6B7280]'
                 }`}>
                   {event?.next_meeting ?? 'None scheduled'}
                 </p>
@@ -411,31 +434,31 @@ export default function EventDetailPage() {
           {/* Expanded alert details */}
           {alertExpanded && topAlert && (
             <div className={`px-4 py-3 border-t ${
-              topAlert.severity === 'critical' ? 'border-red-900/40 bg-red-950/20' :
-              topAlert.severity === 'warning'  ? 'border-orange-900/30 bg-orange-950/10' :
-                                                 'border-zinc-800 bg-zinc-900/40'
+              topAlert.severity === 'critical' ? 'border-[#EF4444]/25 bg-[#EF4444]/5' :
+              topAlert.severity === 'warning'  ? 'border-[#F59E0B]/20 bg-[#F59E0B]/5' :
+                                                 'border-[#3B82F6]/20 bg-[#3B82F6]/5'
             }`}>
               {topAlert.message && (
-                <p className="text-sm text-zinc-300 leading-relaxed mb-2">{topAlert.message}</p>
+                <p className="text-sm text-[#E5E7EB] leading-relaxed mb-2">{topAlert.message}</p>
               )}
               <div className="flex items-center gap-3 flex-wrap">
                 <span className={`text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded ${
-                  topAlert.severity === 'critical' ? 'bg-red-500/15 text-red-400' :
-                  topAlert.severity === 'warning'  ? 'bg-orange-500/15 text-orange-400' :
-                                                     'bg-zinc-700 text-zinc-400'
+                  topAlert.severity === 'critical' ? 'bg-[#EF4444]/15 text-[#EF4444]' :
+                  topAlert.severity === 'warning'  ? 'bg-[#F59E0B]/15 text-[#F59E0B]' :
+                                                     'bg-[#3B82F6]/15 text-[#3B82F6]'
                 }`}>
                   {topAlert.severity}
                 </span>
                 {profileMap[topAlert.created_by]?.full_name && (
-                  <span className="text-xs text-zinc-500">
+                  <span className="text-xs text-[#6B7280]">
                     Posted by {profileMap[topAlert.created_by].full_name}
                   </span>
                 )}
-                <time className="text-xs font-mono text-zinc-600">
+                <time className="text-xs font-mono text-[#6B7280]">
                   {formatICSDateTime(topAlert.created_at)}
                 </time>
                 {alerts.length > 1 && (
-                  <span className="text-xs text-zinc-600">
+                  <span className="text-xs text-[#6B7280]">
                     +{alerts.length - 1} more alert{alerts.length > 2 ? 's' : ''}
                   </span>
                 )}
@@ -447,27 +470,27 @@ export default function EventDetailPage() {
         {/* 3 · MY ASSIGNMENT ────────────────────────────────── */}
         {myAssignment ? (
           <section className="mb-8">
-            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">My Assignment</p>
-            <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-4">
+            <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide mb-3">My Assignment</p>
+            <div className="bg-[#161D26] border border-[#232B36] rounded-2xl p-4">
 
-              <p className="text-2xl font-bold text-zinc-100 leading-tight tracking-tight">
+              <p className="text-2xl font-bold text-[#E5E7EB] leading-tight tracking-tight">
                 {getPositionLabel(myAssignment.ics_position)}
               </p>
               {myTeam && !myTeam.name.startsWith('__') && (
-                <p className="text-sm text-zinc-500 mt-1">Team: {myTeam.name}</p>
+                <p className="text-sm text-[#6B7280] mt-1">Team: {myTeam.name}</p>
               )}
 
               {(supervisorProfile || teammates.length > 0) && (
-                <div className="mt-4 pt-4 border-t border-zinc-800 space-y-3">
+                <div className="mt-4 pt-4 border-t border-[#232B36] space-y-3">
                   {supervisorProfile && (
                     <div className="flex items-center gap-3">
-                      <span className="text-xs text-zinc-600 w-24 flex-shrink-0">Reporting to</span>
+                      <span className="text-xs text-[#6B7280] w-24 flex-shrink-0">Reporting to</span>
                       <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-6 h-6 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-xs font-mono text-zinc-300 flex-shrink-0">
+                        <div className="w-6 h-6 rounded-full bg-[#121821] border border-[#232B36] flex items-center justify-center text-xs font-mono text-[#9CA3AF] flex-shrink-0">
                           {getInitials(supervisorProfile.full_name ?? '')}
                         </div>
-                        <span className="text-sm text-zinc-300 truncate">{supervisorProfile.full_name}</span>
-                        <span className="text-xs text-zinc-600 flex-shrink-0 hidden sm:inline">
+                        <span className="text-sm text-[#E5E7EB] truncate">{supervisorProfile.full_name}</span>
+                        <span className="text-xs text-[#6B7280] flex-shrink-0 hidden sm:inline">
                           · {getPositionLabel(supervisorAssignment!.ics_position)}
                         </span>
                       </div>
@@ -476,7 +499,7 @@ export default function EventDetailPage() {
 
                   {teammates.length > 0 && (
                     <div className="flex items-start gap-3">
-                      <span className="text-xs text-zinc-600 w-24 flex-shrink-0 pt-1">Team</span>
+                      <span className="text-xs text-[#6B7280] w-24 flex-shrink-0 pt-1">Team</span>
                       <div className="flex flex-wrap gap-1.5">
                         {teammates.slice(0, 5).map((a: any) => {
                           const p = profileMap[a.user_id]
@@ -484,19 +507,19 @@ export default function EventDetailPage() {
                             <div
                               key={a.id}
                               title={`${p?.full_name ?? 'Unknown'} · ${getPositionLabel(a.ics_position)}`}
-                              className="flex items-center gap-1.5 bg-zinc-800/60 border border-zinc-700/60 rounded-full pl-1 pr-2.5 py-0.5"
+                              className="flex items-center gap-1.5 bg-[#121821] border border-[#232B36] rounded-full pl-1 pr-2.5 py-0.5"
                             >
-                              <div className="w-5 h-5 rounded-full bg-zinc-700 flex items-center justify-center text-xs font-mono text-zinc-300 flex-shrink-0">
+                              <div className="w-5 h-5 rounded-full bg-[#232B36] flex items-center justify-center text-xs font-mono text-[#9CA3AF] flex-shrink-0">
                                 {getInitials(p?.full_name ?? '?')}
                               </div>
-                              <span className="text-xs text-zinc-400 max-w-[80px] truncate">
+                              <span className="text-xs text-[#9CA3AF] max-w-[80px] truncate">
                                 {p?.full_name ?? 'Unknown'}
                               </span>
                             </div>
                           )
                         })}
                         {teammates.length > 5 && (
-                          <div className="flex items-center px-2 text-xs text-zinc-600">
+                          <div className="flex items-center px-2 text-xs text-[#6B7280]">
                             +{teammates.length - 5} more
                           </div>
                         )}
@@ -508,9 +531,9 @@ export default function EventDetailPage() {
             </div>
           </section>
         ) : activeOp ? (
-          <div className="mb-8 border border-zinc-800 border-dashed rounded-xl px-4 py-6 text-center">
-            <p className="text-sm text-zinc-500">You are not assigned to the active operational period.</p>
-            <p className="text-xs text-zinc-600 mt-1">Contact your supervisor to be added.</p>
+          <div className="mb-8 border border-[#232B36] border-dashed rounded-2xl px-4 py-6 text-center">
+            <p className="text-sm text-[#6B7280]">You are not assigned to the active operational period.</p>
+            <p className="text-xs text-[#6B7280]/70 mt-1">Contact your supervisor to be added.</p>
           </div>
         ) : null}
 
@@ -519,7 +542,7 @@ export default function EventDetailPage() {
           <div className="mb-8">
             <Link
               href={`/events/${id}/op/${activeOp.id}/log`}
-              className="w-full flex items-center justify-center gap-2.5 bg-orange-600 hover:bg-orange-500 active:bg-orange-700 active:scale-[0.98] text-white px-6 py-4 rounded-xl text-base font-bold transition-all shadow-lg shadow-orange-900/20 cursor-pointer"
+              className="w-full flex items-center justify-center gap-2.5 bg-[#FF5A1F] hover:bg-[#FF6A33] active:bg-[#E14A12] active:scale-[0.98] text-white px-6 py-4 rounded-2xl text-base font-bold transition-all shadow-lg shadow-[#FF5A1F]/10 cursor-pointer"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
@@ -534,10 +557,10 @@ export default function EventDetailPage() {
         {recentEntries.length > 0 && activeOp && (
           <section className="mb-8">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Recent Activity</p>
+              <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide">Recent Activity</p>
               <Link
                 href={`/events/${id}/op/${activeOp.id}/log`}
-                className="inline-flex items-center gap-1 text-xs font-medium text-zinc-500 hover:text-zinc-200 transition-colors py-1 px-2 -mr-2 rounded-lg hover:bg-zinc-800"
+                className="inline-flex items-center gap-1 text-xs font-medium text-[#6B7280] hover:text-[#E5E7EB] transition-colors py-1 px-2 -mr-2 rounded-lg hover:bg-[#161D26]"
               >
                 View all
                 <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -546,19 +569,19 @@ export default function EventDetailPage() {
               </Link>
             </div>
             <div className="relative">
-              <div className="absolute left-[5px] top-2 bottom-2 w-px bg-zinc-800/60" />
+              <div className="absolute left-[5px] top-2 bottom-2 w-px bg-[#232B36]" />
               <div className="space-y-0">
                 {recentEntries.map(entry => (
                   <div key={entry.id} className="flex gap-4 pb-4">
-                    <div className="w-2.5 h-2.5 rounded-full bg-zinc-700 ring-1 ring-zinc-600 flex-shrink-0 mt-1 relative z-10" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#232B36] ring-1 ring-[#3a4555] flex-shrink-0 mt-1 relative z-10" />
                     <div className="flex-1 min-w-0">
-                      <time className="text-xs font-mono text-orange-400/70">
+                      <time className="text-xs font-mono text-[#FF5A1F]/70">
                         {formatICSDateTime(entry.entry_time)}
                       </time>
-                      <p className="text-sm text-zinc-300 leading-relaxed mt-0.5 line-clamp-2">
+                      <p className="text-sm text-[#E5E7EB] leading-relaxed mt-0.5 line-clamp-2">
                         {entry.narrative}
                       </p>
-                      <p className="text-xs text-zinc-600 mt-1">{profile?.full_name}</p>
+                      <p className="text-xs text-[#6B7280] mt-1">{profile?.full_name}</p>
                     </div>
                   </div>
                 ))}
@@ -568,54 +591,60 @@ export default function EventDetailPage() {
         )}
 
         {/* ── DIVIDER ──────────────────────────────────────────── */}
-        {canManage && <div className="border-t border-zinc-800/60 mb-8" />}
+        {canManage && <div className="border-t border-[#232B36]/60 mb-8" />}
 
         {/* 5 · MANAGEMENT SECTION (admin / supervisor) ──────── */}
         {canManage && (
           <section>
             <div className="flex items-center gap-2 mb-4 flex-wrap">
-              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide flex-1">
+              <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide flex-1">
                 Operational Periods
               </p>
               {isAdmin && (
                 <>
                   <Link
                     href={`/events/${id}/op/new`}
-                    className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+                    className="text-xs text-[#6B7280] hover:text-[#9CA3AF] transition-colors"
                   >
                     + Add Period
                   </Link>
                   <Link
                     href={`/api/events/${id}/export`}
-                    className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+                    className="text-xs text-[#6B7280] hover:text-[#9CA3AF] transition-colors"
                   >
                     Export All
                   </Link>
                   {event.status === 'active' ? (
                     <button
                       onClick={() => setConfirming('close-event')}
-                      className="text-xs text-red-500/50 hover:text-red-400 transition-colors"
+                      className="text-xs text-[#EF4444]/50 hover:text-[#EF4444] transition-colors"
                     >
                       Close Event
                     </button>
                   ) : (
                     <button
                       onClick={() => setConfirming('reopen-event')}
-                      className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+                      className="text-xs text-[#6B7280] hover:text-[#9CA3AF] transition-colors"
                     >
                       Reopen Event
                     </button>
                   )}
+                  <button
+                    onClick={() => setConfirming('delete-event')}
+                    className="text-xs text-[#EF4444]/40 hover:text-[#EF4444] transition-colors"
+                  >
+                    Delete
+                  </button>
                 </>
               )}
             </div>
 
             {ops.length === 0 ? (
-              <div className="border border-zinc-800 border-dashed rounded-xl p-8 text-center">
-                <p className="text-zinc-600 text-sm">No operational periods yet.</p>
+              <div className="border border-[#232B36] border-dashed rounded-2xl p-8 text-center">
+                <p className="text-[#6B7280] text-sm">No operational periods yet.</p>
                 {isAdmin && (
                   <Link href={`/events/${id}/op/new`}
-                    className="inline-block mt-3 text-orange-500 text-sm hover:underline">
+                    className="inline-block mt-3 text-[#FF5A1F] text-sm hover:underline">
                     Create first operational period →
                   </Link>
                 )}
@@ -631,12 +660,12 @@ export default function EventDetailPage() {
                   const myOpAssignment = opAssignments.find((a: any) => a.user_id === currentUserId)
 
                   return (
-                    <div key={op.id} className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+                    <div key={op.id} className="bg-[#161D26] border border-[#232B36] rounded-2xl overflow-hidden">
                       <div className="flex items-center justify-between px-4 py-3.5">
                         <div className="flex items-center gap-3 flex-1 min-w-0">
                           <button
                             onClick={() => toggleOp(op.id)}
-                            className="w-7 h-7 rounded-lg flex items-center justify-center bg-zinc-800 border border-zinc-700 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 flex-shrink-0 transition-all"
+                            className="w-7 h-7 rounded-lg flex items-center justify-center bg-[#121821] border border-[#232B36] text-[#9CA3AF] hover:bg-[#232B36] hover:text-[#E5E7EB] flex-shrink-0 transition-all"
                           >
                             <svg className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                               <path d="M6 9l6 6 6-6"/>
@@ -644,18 +673,18 @@ export default function EventDetailPage() {
                           </button>
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <p className="text-sm font-semibold text-zinc-200">
+                              <p className="text-sm font-semibold text-[#E5E7EB]">
                                 Operational Period {op.period_number}
                               </p>
                               <span className={`text-xs font-medium px-2 py-0.5 rounded-full ring-1 ring-inset ${
                                 op.status === 'active'
-                                  ? 'bg-green-500/10 text-green-400 ring-green-500/20'
-                                  : 'bg-zinc-500/10 text-zinc-500 ring-zinc-700/30'
+                                  ? 'bg-[#22C55E]/10 text-[#22C55E] ring-[#22C55E]/20'
+                                  : 'bg-[#6B7280]/10 text-[#6B7280] ring-[#6B7280]/20'
                               }`}>
                                 {op.status}
                               </span>
                             </div>
-                            <p className="text-xs font-mono text-zinc-500 mt-0.5">
+                            <p className="text-xs font-mono text-[#6B7280] mt-0.5">
                               {formatDate(op.op_period_start)} {formatICSTime(op.op_period_start)} — {formatICSTime(op.op_period_end)}
                             </p>
                           </div>
@@ -666,14 +695,14 @@ export default function EventDetailPage() {
                             {isAdmin && (
                               <Link
                                 href={`/events/${id}/op/${op.id}/build`}
-                                className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+                                className="text-xs text-[#6B7280] hover:text-[#9CA3AF] transition-colors"
                               >
                                 Org Chart
                               </Link>
                             )}
                             <Link
                               href={`/events/${id}/op/${op.id}/review`}
-                              className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+                              className="text-xs text-[#6B7280] hover:text-[#9CA3AF] transition-colors"
                             >
                               Review
                             </Link>
@@ -681,14 +710,14 @@ export default function EventDetailPage() {
                               op.status === 'active' ? (
                                 <button
                                   onClick={() => setConfirming(`close-op-${op.id}`)}
-                                  className="text-xs text-red-500/50 hover:text-red-400 transition-colors"
+                                  className="text-xs text-[#EF4444]/50 hover:text-[#EF4444] transition-colors"
                                 >
                                   Demob
                                 </button>
                               ) : (
                                 <button
                                   onClick={() => setConfirming(`reopen-op-${op.id}`)}
-                                  className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+                                  className="text-xs text-[#6B7280] hover:text-[#9CA3AF] transition-colors"
                                 >
                                   Reopen
                                 </button>
@@ -702,7 +731,7 @@ export default function EventDetailPage() {
                         {myOpAssignment && (
                           <Link
                             href={`/events/${id}/op/${op.id}/log`}
-                            className="bg-orange-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-orange-500 transition-colors"
+                            className="bg-[#FF5A1F] text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-[#FF6A33] transition-colors"
                           >
                             Open My 214
                           </Link>
@@ -710,7 +739,7 @@ export default function EventDetailPage() {
                         {canManage && (
                           <Link
                             href={`/api/events/${id}/op/${op.id}/export/all`}
-                            className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+                            className="text-xs text-[#6B7280] hover:text-[#9CA3AF] transition-colors"
                           >
                             Export OP {op.period_number}
                           </Link>
@@ -718,27 +747,27 @@ export default function EventDetailPage() {
                       </div>
 
                       {isExpanded && (
-                        <div className="border-t border-zinc-800">
+                        <div className="border-t border-[#232B36]">
                           {opAssignments.length === 0 ? (
-                            <p className="px-4 py-4 text-sm text-zinc-600">No personnel assigned yet.</p>
+                            <p className="px-4 py-4 text-sm text-[#6B7280]">No personnel assigned yet.</p>
                           ) : (
                             <div className="px-4 py-3">
                               {opTeams.filter((t: any) => !t.group_id).map((team: any) => {
                                 const teamMembers = opAssignments.filter((a: any) => a.team_id === team.id)
                                 return (
                                   <div key={team.id} className="mb-3">
-                                    <p className="text-xs text-zinc-500 mb-1 font-mono">Team: {team.name}</p>
+                                    <p className="text-xs text-[#6B7280] mb-1 font-mono">Team: {team.name}</p>
                                     {teamMembers.map((a: any) => {
                                       const p = profileMap[a.user_id]
                                       return (
                                         <Link key={a.id}
                                           href={`/events/${id}/op/${op.id}/member/${a.user_id}`}
                                           className="flex items-center gap-2 ml-3 py-1 hover:opacity-80 transition-opacity">
-                                          <div className="w-6 h-6 rounded-full bg-zinc-700 flex items-center justify-center text-xs font-mono text-zinc-300 flex-shrink-0">
+                                          <div className="w-6 h-6 rounded-full bg-[#232B36] flex items-center justify-center text-xs font-mono text-[#9CA3AF] flex-shrink-0">
                                             {getInitials(p?.full_name ?? '?')}
                                           </div>
-                                          <span className="text-xs text-zinc-300">{p?.full_name ?? 'Unknown'}</span>
-                                          <span className="text-xs text-zinc-600">{a.ics_position.replace(/_/g, ' ')}</span>
+                                          <span className="text-xs text-[#E5E7EB]">{p?.full_name ?? 'Unknown'}</span>
+                                          <span className="text-xs text-[#6B7280]">{a.ics_position.replace(/_/g, ' ')}</span>
                                         </Link>
                                       )
                                     })}
@@ -750,23 +779,23 @@ export default function EventDetailPage() {
                                 const grpTeams = opTeams.filter((t: any) => t.group_id === grp.id)
                                 return (
                                   <div key={grp.id} className="mb-3">
-                                    <p className="text-xs text-zinc-400 mb-1 font-mono">Group: {grp.name}</p>
+                                    <p className="text-xs text-[#9CA3AF] mb-1 font-mono">Group: {grp.name}</p>
                                     {grpTeams.map((team: any) => {
                                       const teamMembers = opAssignments.filter((a: any) => a.team_id === team.id)
                                       return (
                                         <div key={team.id} className="ml-3 mb-2">
-                                          <p className="text-xs text-zinc-500 mb-1">Team: {team.name}</p>
+                                          <p className="text-xs text-[#6B7280] mb-1">Team: {team.name}</p>
                                           {teamMembers.map((a: any) => {
                                             const p = profileMap[a.user_id]
                                             return (
                                               <Link key={a.id}
                                                 href={`/events/${id}/op/${op.id}/member/${a.user_id}`}
                                                 className="flex items-center gap-2 ml-3 py-1 hover:opacity-80 transition-opacity">
-                                                <div className="w-6 h-6 rounded-full bg-zinc-700 flex items-center justify-center text-xs font-mono text-zinc-300 flex-shrink-0">
+                                                <div className="w-6 h-6 rounded-full bg-[#232B36] flex items-center justify-center text-xs font-mono text-[#9CA3AF] flex-shrink-0">
                                                   {getInitials(p?.full_name ?? '?')}
                                                 </div>
-                                                <span className="text-xs text-zinc-300">{p?.full_name ?? 'Unknown'}</span>
-                                                <span className="text-xs text-zinc-600">{a.ics_position.replace(/_/g, ' ')}</span>
+                                                <span className="text-xs text-[#E5E7EB]">{p?.full_name ?? 'Unknown'}</span>
+                                                <span className="text-xs text-[#6B7280]">{a.ics_position.replace(/_/g, ' ')}</span>
                                               </Link>
                                             )
                                           })}
@@ -781,30 +810,30 @@ export default function EventDetailPage() {
                                 const divGroups = opGroups.filter((g: any) => g.division_id === div.id)
                                 return (
                                   <div key={div.id} className="mb-3">
-                                    <p className="text-xs font-mono text-zinc-400 uppercase tracking-wider mb-2">
+                                    <p className="text-xs font-mono text-[#9CA3AF] uppercase tracking-wider mb-2">
                                       {div.type === 'branch' ? 'Branch' : 'Division'}: {div.name}
                                     </p>
                                     {divGroups.map((grp: any) => {
                                       const grpTeams = opTeams.filter((t: any) => t.group_id === grp.id)
                                       return (
                                         <div key={grp.id} className="ml-3 mb-2">
-                                          <p className="text-xs text-zinc-500 mb-1">Group: {grp.name}</p>
+                                          <p className="text-xs text-[#6B7280] mb-1">Group: {grp.name}</p>
                                           {grpTeams.map((team: any) => {
                                             const teamMembers = opAssignments.filter((a: any) => a.team_id === team.id)
                                             return (
                                               <div key={team.id} className="ml-3 mb-2">
-                                                <p className="text-xs text-zinc-600 mb-1">Team: {team.name}</p>
+                                                <p className="text-xs text-[#6B7280] mb-1">Team: {team.name}</p>
                                                 {teamMembers.map((a: any) => {
                                                   const p = profileMap[a.user_id]
                                                   return (
                                                     <Link key={a.id}
                                                       href={`/events/${id}/op/${op.id}/member/${a.user_id}`}
                                                       className="flex items-center gap-2 ml-3 py-1 hover:opacity-80 transition-opacity">
-                                                      <div className="w-6 h-6 rounded-full bg-zinc-700 flex items-center justify-center text-xs font-mono text-zinc-300 flex-shrink-0">
+                                                      <div className="w-6 h-6 rounded-full bg-[#232B36] flex items-center justify-center text-xs font-mono text-[#9CA3AF] flex-shrink-0">
                                                         {getInitials(p?.full_name ?? '?')}
                                                       </div>
-                                                      <span className="text-xs text-zinc-300">{p?.full_name ?? 'Unknown'}</span>
-                                                      <span className="text-xs text-zinc-600">{a.ics_position.replace(/_/g, ' ')}</span>
+                                                      <span className="text-xs text-[#E5E7EB]">{p?.full_name ?? 'Unknown'}</span>
+                                                      <span className="text-xs text-[#6B7280]">{a.ics_position.replace(/_/g, ' ')}</span>
                                                     </Link>
                                                   )
                                                 })}
@@ -819,8 +848,8 @@ export default function EventDetailPage() {
                               })}
                             </div>
                           )}
-                          <div className="px-4 py-2 border-t border-zinc-800 bg-zinc-950/50">
-                            <p className="text-xs text-zinc-600">{opAssignments.length} personnel assigned</p>
+                          <div className="px-4 py-2 border-t border-[#232B36] bg-[#0B0F14]/50">
+                            <p className="text-xs text-[#6B7280]">{opAssignments.length} personnel assigned</p>
                           </div>
                         </div>
                       )}
@@ -835,7 +864,7 @@ export default function EventDetailPage() {
         {/* 5b · NON-MANAGER: read-only periods list ─────────── */}
         {!canManage && ops.length > 0 && (
           <section>
-            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">All Periods</p>
+            <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide mb-3">All Periods</p>
             <div className="space-y-2">
               {ops.map((op: any) => {
                 const myOpA = assignments.find(
@@ -843,26 +872,26 @@ export default function EventDetailPage() {
                 )
                 return (
                   <div key={op.id}
-                    className="flex items-center justify-between bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3">
+                    className="flex items-center justify-between bg-[#161D26] border border-[#232B36] rounded-2xl px-4 py-3">
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-medium text-zinc-300">Operational Period {op.period_number}</p>
+                        <p className="text-sm font-medium text-[#E5E7EB]">Operational Period {op.period_number}</p>
                         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ring-1 ring-inset ${
                           op.status === 'active'
-                            ? 'bg-green-500/10 text-green-400 ring-green-500/20'
-                            : 'bg-zinc-500/10 text-zinc-500 ring-zinc-700/30'
+                            ? 'bg-[#22C55E]/10 text-[#22C55E] ring-[#22C55E]/20'
+                            : 'bg-[#6B7280]/10 text-[#6B7280] ring-[#6B7280]/20'
                         }`}>
                           {op.status}
                         </span>
                       </div>
-                      <p className="text-xs font-mono text-zinc-600 mt-0.5">
+                      <p className="text-xs font-mono text-[#6B7280] mt-0.5">
                         {formatICSTime(op.op_period_start)} — {formatICSTime(op.op_period_end)}
                       </p>
                     </div>
                     {myOpA && (
                       <Link
                         href={`/events/${id}/op/${op.id}/log`}
-                        className="text-xs bg-zinc-800 text-zinc-300 border border-zinc-700 px-3 py-1.5 rounded-lg font-medium hover:bg-zinc-700 transition-colors"
+                        className="text-xs bg-transparent text-[#9CA3AF] border border-[#232B36] px-3 py-1.5 rounded-lg font-medium hover:bg-[#161D26] hover:border-[#3a4555] transition-colors"
                       >
                         My 214
                       </Link>
@@ -877,19 +906,24 @@ export default function EventDetailPage() {
         {/* 7 · ALERT MANAGEMENT (admin only) ───────────────── */}
         {isAdmin && (
           <section className="mt-2">
-            <div className="border-t border-zinc-800/60 pt-8">
+            {deleteError && (
+              <div className="mb-4 px-3 py-2 rounded-lg bg-[#EF4444]/5 border border-[#EF4444]/25 text-xs text-[#EF4444] font-mono break-all">
+                Delete failed: {deleteError}
+              </div>
+            )}
+            <div className="border-t border-[#232B36]/60 pt-8">
               <div className="flex items-center justify-between mb-4">
-                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">
+                <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide">
                   Alerts
                   {alerts.length > 0 && (
-                    <span className="ml-2 text-zinc-600 font-normal normal-case">
+                    <span className="ml-2 text-[#6B7280] font-normal normal-case">
                       {alerts.length} active
                     </span>
                   )}
                 </p>
                 <button
                   onClick={() => setShowAlertForm(v => !v)}
-                  className="text-xs text-orange-500 hover:text-orange-400 transition-colors"
+                  className="text-xs text-[#FF5A1F] hover:text-[#FF6A33] transition-colors"
                 >
                   {showAlertForm ? 'Cancel' : '+ New Alert'}
                 </button>
@@ -897,7 +931,7 @@ export default function EventDetailPage() {
 
               {/* Create form */}
               {showAlertForm && (
-                <form onSubmit={handleCreateAlert} className="mb-4 bg-zinc-900 border border-zinc-700 rounded-xl p-4 space-y-3">
+                <form onSubmit={handleCreateAlert} className="mb-4 bg-[#161D26] border border-[#232B36] rounded-2xl p-4 space-y-3">
                   <input
                     value={alertTitle}
                     onChange={e => setAlertTitle(e.target.value)}
@@ -926,13 +960,13 @@ export default function EventDetailPage() {
                     <button
                       type="submit"
                       disabled={!alertTitle.trim() || alertSubmitting}
-                      className="flex-1 bg-orange-600 hover:bg-orange-500 disabled:opacity-40 disabled:pointer-events-none text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors"
+                      className="flex-1 bg-[#FF5A1F] hover:bg-[#FF6A33] disabled:opacity-40 disabled:pointer-events-none text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors"
                     >
                       {alertSubmitting ? 'Posting…' : 'Post Alert'}
                     </button>
                   </div>
                   {alertError && (
-                    <p className="text-xs text-red-400 mt-2 font-mono bg-red-950/30 border border-red-900/50 rounded-lg px-3 py-2 break-all">
+                    <p className="text-xs text-[#EF4444] mt-2 font-mono bg-[#EF4444]/5 border border-[#EF4444]/25 rounded-lg px-3 py-2 break-all">
                       {alertError}
                     </p>
                   )}
@@ -941,51 +975,51 @@ export default function EventDetailPage() {
 
               {/* Active alerts list */}
               {alerts.length === 0 ? (
-                <p className="text-xs text-zinc-600 py-1">No active alerts.</p>
+                <p className="text-xs text-[#6B7280] py-1">No active alerts.</p>
               ) : (
                 <div className="space-y-2">
                   {alerts.map(alert => (
                     <div
                       key={alert.id}
-                      className={`rounded-xl px-4 py-3 border ${
-                        alert.severity === 'critical' ? 'bg-red-950/25 border-red-800/50' :
-                        alert.severity === 'warning'  ? 'bg-orange-950/20 border-orange-800/40' :
-                                                        'bg-zinc-900 border-zinc-800'
+                      className={`rounded-2xl px-4 py-3 border ${
+                        alert.severity === 'critical' ? 'bg-[#EF4444]/5 border-[#EF4444]/25' :
+                        alert.severity === 'warning'  ? 'bg-[#F59E0B]/5 border-[#F59E0B]/25' :
+                                                        'bg-[#3B82F6]/5 border-[#3B82F6]/20'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-start gap-2.5 min-w-0">
                           <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5 ${
-                            alert.severity === 'critical' ? 'bg-red-500 animate-pulse' :
-                            alert.severity === 'warning'  ? 'bg-orange-500 animate-pulse' :
-                                                            'bg-zinc-500'
+                            alert.severity === 'critical' ? 'bg-[#EF4444] animate-pulse' :
+                            alert.severity === 'warning'  ? 'bg-[#F59E0B] animate-pulse' :
+                                                            'bg-[#3B82F6]'
                           }`} />
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <p className={`text-xs font-semibold ${
-                                alert.severity === 'critical' ? 'text-red-300' :
-                                alert.severity === 'warning'  ? 'text-orange-300' :
-                                                                'text-zinc-200'
+                                alert.severity === 'critical' ? 'text-[#EF4444]' :
+                                alert.severity === 'warning'  ? 'text-[#F59E0B]' :
+                                                                'text-[#3B82F6]'
                               }`}>{alert.title}</p>
                               <span className={`text-xs px-1.5 py-0.5 rounded font-semibold uppercase tracking-wide ${
-                                alert.severity === 'critical' ? 'text-red-400 bg-red-500/15' :
-                                alert.severity === 'warning'  ? 'text-orange-400 bg-orange-500/15' :
-                                                                'text-zinc-500 bg-zinc-800'
+                                alert.severity === 'critical' ? 'text-[#EF4444] bg-[#EF4444]/15' :
+                                alert.severity === 'warning'  ? 'text-[#F59E0B] bg-[#F59E0B]/15' :
+                                                                'text-[#3B82F6] bg-[#3B82F6]/15'
                               }`}>
                                 {alert.severity}
                               </span>
                             </div>
                             {alert.message && (
-                              <p className="text-xs text-zinc-500 mt-1 leading-relaxed">{alert.message}</p>
+                              <p className="text-xs text-[#9CA3AF] mt-1 leading-relaxed">{alert.message}</p>
                             )}
-                            <p className="text-xs text-zinc-700 mt-1 font-mono">
+                            <p className="text-xs text-[#6B7280] mt-1 font-mono">
                               {formatICSDateTime(alert.created_at)}
                             </p>
                           </div>
                         </div>
                         <button
                           onClick={() => deactivateAlert(alert.id)}
-                          className="text-xs text-zinc-600 hover:text-red-400 transition-colors flex-shrink-0 mt-0.5"
+                          className="text-xs text-[#6B7280] hover:text-[#EF4444] transition-colors flex-shrink-0 mt-0.5"
                         >
                           Dismiss
                         </button>
@@ -1002,10 +1036,10 @@ export default function EventDetailPage() {
 
       {/* ── MOBILE STICKY BOTTOM BAR ─────────────────────────── */}
       {myAssignment && activeOp && (
-        <div className="sm:hidden fixed bottom-0 left-0 right-0 z-30 bg-zinc-950/95 backdrop-blur-sm border-t border-zinc-800 px-4 py-3">
+        <div className="sm:hidden fixed bottom-0 left-0 right-0 z-30 bg-[#0B0F14]/95 backdrop-blur-sm border-t border-[#232B36] px-4 py-3">
           <Link
             href={`/events/${id}/op/${activeOp.id}/log`}
-            className="w-full flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-500 active:bg-orange-700 active:scale-[0.98] text-white px-4 py-3 rounded-xl text-sm font-bold transition-all"
+            className="w-full flex items-center justify-center gap-2 bg-[#FF5A1F] hover:bg-[#FF6A33] active:bg-[#E14A12] active:scale-[0.98] text-white px-4 py-3 rounded-2xl text-sm font-bold transition-all"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>

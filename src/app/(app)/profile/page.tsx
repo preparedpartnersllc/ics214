@@ -79,22 +79,22 @@ export default function ProfilePage() {
   }
 
   if (!profile) return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-      <p className="text-zinc-500 text-sm">Loading...</p>
+    <div className="min-h-screen bg-[#0B0F14] flex items-center justify-center">
+      <p className="text-[#6B7280] text-sm">Loading...</p>
     </div>
   )
 
   return (
-    <div className="min-h-screen bg-zinc-950 px-4 py-8 max-w-2xl mx-auto">
+    <div className="min-h-screen bg-[#0B0F14] px-4 py-8 max-w-2xl mx-auto">
       <HomeButton />
 
       <div className="mb-6">
-        <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider mb-1">Account</p>
-        <h1 className="text-xl font-semibold text-zinc-100">Profile Settings</h1>
+        <p className="text-xs text-[#6B7280] font-mono uppercase tracking-wider mb-1">Account</p>
+        <h1 className="text-xl font-semibold text-[#E5E7EB]">Profile Settings</h1>
       </div>
 
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-4 mb-4">
-        <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider">Personal Info</p>
+      <div className="bg-[#161D26] border border-[#232B36] rounded-2xl p-5 space-y-4 mb-4">
+        <p className="text-xs text-[#6B7280] font-mono uppercase tracking-wider">Personal Info</p>
 
         <FormField label="Full Name">
           <input type="text" className="input" value={fullName}
@@ -120,8 +120,8 @@ export default function ProfilePage() {
         </FormField>
       </div>
 
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-4 mb-6">
-        <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider">Preferences</p>
+      <div className="bg-[#161D26] border border-[#232B36] rounded-2xl p-5 space-y-4 mb-6">
+        <p className="text-xs text-[#6B7280] font-mono uppercase tracking-wider">Preferences</p>
 
         <FormField label="Timezone">
           <select className="input" value={timezone}
@@ -132,30 +132,30 @@ export default function ProfilePage() {
           </select>
         </FormField>
 
-        <div className="bg-zinc-800 rounded-lg px-3 py-2">
-          <p className="text-xs text-zinc-500">Current time in your timezone:</p>
-          <p className="text-sm text-zinc-200 font-mono mt-0.5">
+        <div className="bg-[#121821] rounded-lg px-3 py-2">
+          <p className="text-xs text-[#6B7280]">Current time in your timezone:</p>
+          <p className="text-sm text-[#E5E7EB] font-mono mt-0.5">
             {new Date().toLocaleString('en-US', { timeZone: timezone })}
           </p>
         </div>
       </div>
 
-      {error && <p className="text-sm text-red-400 mb-4">{error}</p>}
-      {saved && <p className="text-sm text-green-400 mb-4">✓ Profile updated</p>}
+      {error && <p className="text-sm text-[#EF4444] mb-4">{error}</p>}
+      {saved && <p className="text-sm text-[#22C55E] mb-4">✓ Profile updated</p>}
 
       <Button onClick={save} loading={saving}>Save Changes</Button>
 
-      <div className="mt-8 border-t border-zinc-800 pt-6 space-y-1">
-        <p className="text-xs text-zinc-600 font-mono uppercase tracking-wider mb-2">Account</p>
-        <p className="text-sm text-zinc-500">{profile.email}</p>
-        <p className="text-xs text-zinc-600 capitalize">Role: {profile.role}</p>
-        <p className="text-xs text-zinc-600">
-          Status: <span className={profile.is_active ? 'text-green-500' : 'text-red-500'}>
+      <div className="mt-8 border-t border-[#232B36] pt-6 space-y-1">
+        <p className="text-xs text-[#6B7280] font-mono uppercase tracking-wider mb-2">Account</p>
+        <p className="text-sm text-[#6B7280]">{profile.email}</p>
+        <p className="text-xs text-[#6B7280] capitalize">Role: {profile.role}</p>
+        <p className="text-xs text-[#6B7280]">
+          Status: <span className={profile.is_active ? 'text-[#22C55E]' : 'text-[#EF4444]'}>
             {profile.is_active ? 'Active' : 'Inactive'}
           </span>
         </p>
         {profile.last_active_at && (
-          <p className="text-xs text-zinc-600">
+          <p className="text-xs text-[#6B7280]">
             Last active: {new Date(profile.last_active_at).toLocaleString()}
           </p>
         )}
