@@ -54,8 +54,10 @@ export default function EventDetailPage() {
   const [alertSeverity, setAlertSeverity] = useState('warning')
   const [alertSubmitting, setAlertSubmitting] = useState(false)
   const [alertError, setAlertError] = useState<string | null>(null)
+  const [alertExpanded, setAlertExpanded] = useState(false)
 
   useEffect(() => { load() }, [id])
+  useEffect(() => { setAlertExpanded(false) }, [alerts])
 
   async function load() {
     const supabase = createClient()
@@ -80,20 +82,25 @@ export default function EventDetailPage() {
     const opIds = (opData ?? []).map((o: any) => o.id)
     if (opIds.length === 0) return
 
-    const [{ data: divData }, { data: grpData }, { data: teamData }, { data: aData }] =
+    const [{ data: divData }, { data: grpData }, { data: teamData }, { data: aData }, { data: alertData }] =
       await Promise.all([
         supabase.from('divisions').select('*').in('operational_period_id', opIds),
         supabase.from('groups').select('*').in('operational_period_id', opIds),
         supabase.from('teams').select('*').in('operational_period_id', opIds),
         supabase.from('assignments').select('*').in('operational_period_id', opIds),
+        supabase.from('event_alerts').select('*').eq('event_id', id).eq('is_active', true).order('created_at', { ascending: false }),
       ])
 
     setDivisions(divData ?? [])
     setGroups(grpData ?? [])
     setTeams(teamData ?? [])
     setAssignments(aData ?? [])
+    setAlerts(alertData ?? [])
 
-    const userIds = [...new Set((aData ?? []).map((a: any) => a.user_id))]
+    // Include alert creator IDs so their names appear in profileMap
+    const assignmentUserIds = (aData ?? []).map((a: any) => a.user_id)
+    const alertCreatorIds = (alertData ?? []).map((a: any) => a.created_by).filter(Boolean)
+    const userIds = [...new Set([...assignmentUserIds, ...alertCreatorIds])]
     if (userIds.length > 0) {
       const { data: profs } = await supabase.from('profiles').select('*').in('id', userIds)
       const map = (profs ?? []).reduce((acc: any, prof: any) => {
@@ -101,15 +108,6 @@ export default function EventDetailPage() {
       }, {})
       setProfileMap(map)
     }
-
-    // Fetch active alerts for this event
-    const { data: alertData } = await supabase
-      .from('event_alerts')
-      .select('*')
-      .eq('event_id', id)
-      .eq('is_active', true)
-      .order('created_at', { ascending: false })
-    setAlerts(alertData ?? [])
 
     // Fetch recent activity for current user in active OP
     const activeOpItem = (opData ?? []).find((o: any) => o.status === 'active')
@@ -346,22 +344,30 @@ export default function EventDetailPage() {
         ) : null}
 
         {/* 2 · PRIORITY STRIP ──────────────────────────────── */}
-        <div className={`mb-6 border rounded-xl overflow-hidden transition-colors ${
-          topAlert?.severity === 'critical' ? 'border-red-900/60 bg-red-950/20' :
-          topAlert?.severity === 'warning'  ? 'border-orange-900/50 bg-orange-950/10' :
+        <div className={`mb-6 border rounded-xl overflow-hidden transition-all ${
+          topAlert?.severity === 'critical' ? 'border-red-800/70 bg-red-950/25' :
+          topAlert?.severity === 'warning'  ? 'border-orange-800/60 bg-orange-950/15' :
           topAlert                          ? 'border-zinc-700 bg-zinc-900/60' :
                                               'border-zinc-800 bg-zinc-900/40'
         }`}>
-          <div className="grid grid-cols-2 divide-x divide-zinc-800">
-            {/* Alert cell */}
-            <div className="px-4 py-3 flex items-center gap-2.5">
+          <div className="grid grid-cols-2 divide-x divide-zinc-800/80">
+
+            {/* Alert cell — clickable when an alert exists */}
+            <button
+              type="button"
+              disabled={!topAlert}
+              onClick={() => topAlert && setAlertExpanded(v => !v)}
+              className={`px-4 py-3 flex items-center gap-2.5 text-left w-full transition-colors ${
+                topAlert ? 'cursor-pointer hover:bg-white/[0.02]' : 'cursor-default'
+              }`}
+            >
               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
                 topAlert?.severity === 'critical' ? 'bg-red-500 animate-pulse' :
                 topAlert?.severity === 'warning'  ? 'bg-orange-500 animate-pulse' :
                 topAlert                          ? 'bg-zinc-400' :
                                                     'bg-zinc-700'
               }`} />
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-xs text-zinc-600 uppercase tracking-wide font-medium">Alert</p>
                 <p className={`text-xs font-semibold mt-0.5 truncate ${
                   topAlert?.severity === 'critical' ? 'text-red-400' :
@@ -372,7 +378,13 @@ export default function EventDetailPage() {
                   {topAlert?.title ?? 'No active alerts'}
                 </p>
               </div>
-            </div>
+              {topAlert && (
+                <svg className={`w-3 h-3 flex-shrink-0 text-zinc-600 transition-transform ${alertExpanded ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M6 9l6 6 6-6"/>
+                </svg>
+              )}
+            </button>
+
             {/* Next meeting cell */}
             <div className="px-4 py-3 flex items-center gap-2.5">
               <svg className={`w-3.5 h-3.5 flex-shrink-0 ${event?.next_meeting ? 'text-orange-400' : 'text-zinc-700'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -388,6 +400,41 @@ export default function EventDetailPage() {
               </div>
             </div>
           </div>
+
+          {/* Expanded alert details */}
+          {alertExpanded && topAlert && (
+            <div className={`px-4 py-3 border-t ${
+              topAlert.severity === 'critical' ? 'border-red-900/40 bg-red-950/20' :
+              topAlert.severity === 'warning'  ? 'border-orange-900/30 bg-orange-950/10' :
+                                                 'border-zinc-800 bg-zinc-900/40'
+            }`}>
+              {topAlert.message && (
+                <p className="text-sm text-zinc-300 leading-relaxed mb-2">{topAlert.message}</p>
+              )}
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className={`text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded ${
+                  topAlert.severity === 'critical' ? 'bg-red-500/15 text-red-400' :
+                  topAlert.severity === 'warning'  ? 'bg-orange-500/15 text-orange-400' :
+                                                     'bg-zinc-700 text-zinc-400'
+                }`}>
+                  {topAlert.severity}
+                </span>
+                {profileMap[topAlert.created_by]?.full_name && (
+                  <span className="text-xs text-zinc-500">
+                    Posted by {profileMap[topAlert.created_by].full_name}
+                  </span>
+                )}
+                <time className="text-xs font-mono text-zinc-600">
+                  {formatICSDateTime(topAlert.created_at)}
+                </time>
+                {alerts.length > 1 && (
+                  <span className="text-xs text-zinc-600">
+                    +{alerts.length - 1} more alert{alerts.length > 2 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 3 · MY ASSIGNMENT ────────────────────────────────── */}
@@ -893,40 +940,49 @@ export default function EventDetailPage() {
                   {alerts.map(alert => (
                     <div
                       key={alert.id}
-                      className={`flex items-start justify-between gap-3 rounded-xl px-4 py-3 border ${
-                        alert.severity === 'critical' ? 'bg-red-950/20 border-red-900/40' :
-                        alert.severity === 'warning'  ? 'bg-orange-950/15 border-orange-900/40' :
+                      className={`rounded-xl px-4 py-3 border ${
+                        alert.severity === 'critical' ? 'bg-red-950/25 border-red-800/50' :
+                        alert.severity === 'warning'  ? 'bg-orange-950/20 border-orange-800/40' :
                                                         'bg-zinc-900 border-zinc-800'
                       }`}
                     >
-                      <div className="flex items-start gap-2.5 min-w-0">
-                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5 ${
-                          alert.severity === 'critical' ? 'bg-red-500' :
-                          alert.severity === 'warning'  ? 'bg-orange-500' :
-                                                          'bg-zinc-500'
-                        }`} />
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="text-xs font-semibold text-zinc-200">{alert.title}</p>
-                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium capitalize ${
-                              alert.severity === 'critical' ? 'text-red-400 bg-red-500/10' :
-                              alert.severity === 'warning'  ? 'text-orange-400 bg-orange-500/10' :
-                                                              'text-zinc-500 bg-zinc-800'
-                            }`}>
-                              {alert.severity}
-                            </span>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-2.5 min-w-0">
+                          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5 ${
+                            alert.severity === 'critical' ? 'bg-red-500 animate-pulse' :
+                            alert.severity === 'warning'  ? 'bg-orange-500 animate-pulse' :
+                                                            'bg-zinc-500'
+                          }`} />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className={`text-xs font-semibold ${
+                                alert.severity === 'critical' ? 'text-red-300' :
+                                alert.severity === 'warning'  ? 'text-orange-300' :
+                                                                'text-zinc-200'
+                              }`}>{alert.title}</p>
+                              <span className={`text-xs px-1.5 py-0.5 rounded font-semibold uppercase tracking-wide ${
+                                alert.severity === 'critical' ? 'text-red-400 bg-red-500/15' :
+                                alert.severity === 'warning'  ? 'text-orange-400 bg-orange-500/15' :
+                                                                'text-zinc-500 bg-zinc-800'
+                              }`}>
+                                {alert.severity}
+                              </span>
+                            </div>
+                            {alert.message && (
+                              <p className="text-xs text-zinc-500 mt-1 leading-relaxed">{alert.message}</p>
+                            )}
+                            <p className="text-xs text-zinc-700 mt-1 font-mono">
+                              {formatICSDateTime(alert.created_at)}
+                            </p>
                           </div>
-                          {alert.message && (
-                            <p className="text-xs text-zinc-500 mt-0.5">{alert.message}</p>
-                          )}
                         </div>
+                        <button
+                          onClick={() => deactivateAlert(alert.id)}
+                          className="text-xs text-zinc-600 hover:text-red-400 transition-colors flex-shrink-0 mt-0.5"
+                        >
+                          Dismiss
+                        </button>
                       </div>
-                      <button
-                        onClick={() => deactivateAlert(alert.id)}
-                        className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors flex-shrink-0 mt-0.5"
-                      >
-                        Dismiss
-                      </button>
                     </div>
                   ))}
                 </div>
