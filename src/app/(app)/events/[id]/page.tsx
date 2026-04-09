@@ -53,6 +53,7 @@ export default function EventDetailPage() {
   const [alertMessage, setAlertMessage] = useState('')
   const [alertSeverity, setAlertSeverity] = useState('warning')
   const [alertSubmitting, setAlertSubmitting] = useState(false)
+  const [alertError, setAlertError] = useState<string | null>(null)
 
   useEffect(() => { load() }, [id])
 
@@ -170,11 +171,12 @@ export default function EventDetailPage() {
     e.preventDefault()
     if (!alertTitle.trim()) return
     setAlertSubmitting(true)
+    setAlertError(null)
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setAlertSubmitting(false); return }
 
-    const { data: newAlert } = await supabase
+    const { data: newAlert, error } = await supabase
       .from('event_alerts')
       .insert({
         event_id: id,
@@ -186,6 +188,12 @@ export default function EventDetailPage() {
       })
       .select()
       .single()
+
+    if (error) {
+      setAlertError(error.message)
+      setAlertSubmitting(false)
+      return
+    }
 
     if (newAlert) {
       setAlerts(prev => [newAlert, ...prev])
@@ -869,6 +877,11 @@ export default function EventDetailPage() {
                       {alertSubmitting ? 'Posting…' : 'Post Alert'}
                     </button>
                   </div>
+                  {alertError && (
+                    <p className="text-xs text-red-400 mt-2 font-mono bg-red-950/30 border border-red-900/50 rounded-lg px-3 py-2 break-all">
+                      {alertError}
+                    </p>
+                  )}
                 </form>
               )}
 
