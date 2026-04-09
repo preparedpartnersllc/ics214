@@ -42,9 +42,17 @@ export default function EventDetailPage() {
   const [assignments, setAssignments] = useState<any[]>([])
   const [profileMap, setProfileMap] = useState<any>({})
   const [recentEntries, setRecentEntries] = useState<any[]>([])
+  const [alerts, setAlerts] = useState<any[]>([])
   const [expandedOps, setExpandedOps] = useState<Set<string>>(new Set())
   const [confirming, setConfirming] = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+
+  // Alert form state
+  const [showAlertForm, setShowAlertForm] = useState(false)
+  const [alertTitle, setAlertTitle] = useState('')
+  const [alertMessage, setAlertMessage] = useState('')
+  const [alertSeverity, setAlertSeverity] = useState('warning')
+  const [alertSubmitting, setAlertSubmitting] = useState(false)
 
   useEffect(() => { load() }, [id])
 
@@ -92,6 +100,15 @@ export default function EventDetailPage() {
       }, {})
       setProfileMap(map)
     }
+
+    // Fetch active alerts for this event
+    const { data: alertData } = await supabase
+      .from('event_alerts')
+      .select('*')
+      .eq('event_id', id)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+    setAlerts(alertData ?? [])
 
     // Fetch recent activity for current user in active OP
     const activeOpItem = (opData ?? []).find((o: any) => o.status === 'active')
@@ -149,6 +166,43 @@ export default function EventDetailPage() {
     setConfirming(null)
   }
 
+  async function handleCreateAlert(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (!alertTitle.trim()) return
+    setAlertSubmitting(true)
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setAlertSubmitting(false); return }
+
+    const { data: newAlert } = await supabase
+      .from('event_alerts')
+      .insert({
+        event_id: id,
+        title: alertTitle.trim(),
+        message: alertMessage.trim() || null,
+        severity: alertSeverity,
+        is_active: true,
+        created_by: user.id,
+      })
+      .select()
+      .single()
+
+    if (newAlert) {
+      setAlerts(prev => [newAlert, ...prev])
+      setAlertTitle('')
+      setAlertMessage('')
+      setAlertSeverity('warning')
+      setShowAlertForm(false)
+    }
+    setAlertSubmitting(false)
+  }
+
+  async function deactivateAlert(alertId: string) {
+    const supabase = createClient()
+    await supabase.from('event_alerts').update({ is_active: false }).eq('id', alertId)
+    setAlerts(prev => prev.filter(a => a.id !== alertId))
+  }
+
   if (!event) return (
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
       <p className="text-zinc-500 text-sm">Loading...</p>
@@ -175,6 +229,11 @@ export default function EventDetailPage() {
 
   const isAdmin = profile?.role === 'admin'
   const canManage = isAdmin || profile?.role === 'supervisor'
+
+  const severityRank: Record<string, number> = { critical: 3, warning: 2, info: 1 }
+  const topAlert = alerts.length > 0
+    ? [...alerts].sort((a, b) => (severityRank[b.severity] ?? 0) - (severityRank[a.severity] ?? 0))[0]
+    : null
 
   return (
     <div className="min-h-screen bg-zinc-950 flex flex-col">
@@ -279,25 +338,34 @@ export default function EventDetailPage() {
         ) : null}
 
         {/* 2 · PRIORITY STRIP ──────────────────────────────── */}
-        <div className={`mb-6 border rounded-xl overflow-hidden ${
-          event?.alert
-            ? 'border-red-900/50 bg-red-950/20'
-            : 'border-zinc-800 bg-zinc-900/40'
+        <div className={`mb-6 border rounded-xl overflow-hidden transition-colors ${
+          topAlert?.severity === 'critical' ? 'border-red-900/60 bg-red-950/20' :
+          topAlert?.severity === 'warning'  ? 'border-orange-900/50 bg-orange-950/10' :
+          topAlert                          ? 'border-zinc-700 bg-zinc-900/60' :
+                                              'border-zinc-800 bg-zinc-900/40'
         }`}>
           <div className="grid grid-cols-2 divide-x divide-zinc-800">
+            {/* Alert cell */}
             <div className="px-4 py-3 flex items-center gap-2.5">
               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                event?.alert ? 'bg-red-500 animate-pulse' : 'bg-zinc-700'
+                topAlert?.severity === 'critical' ? 'bg-red-500 animate-pulse' :
+                topAlert?.severity === 'warning'  ? 'bg-orange-500 animate-pulse' :
+                topAlert                          ? 'bg-zinc-400' :
+                                                    'bg-zinc-700'
               }`} />
               <div className="min-w-0">
                 <p className="text-xs text-zinc-600 uppercase tracking-wide font-medium">Alert</p>
                 <p className={`text-xs font-semibold mt-0.5 truncate ${
-                  event?.alert ? 'text-red-400' : 'text-zinc-600'
+                  topAlert?.severity === 'critical' ? 'text-red-400' :
+                  topAlert?.severity === 'warning'  ? 'text-orange-400' :
+                  topAlert                          ? 'text-zinc-300' :
+                                                      'text-zinc-600'
                 }`}>
-                  {event?.alert ?? 'No active alerts'}
+                  {topAlert?.title ?? 'No active alerts'}
                 </p>
               </div>
             </div>
+            {/* Next meeting cell */}
             <div className="px-4 py-3 flex items-center gap-2.5">
               <svg className={`w-3.5 h-3.5 flex-shrink-0 ${event?.next_meeting ? 'text-orange-400' : 'text-zinc-700'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
@@ -740,6 +808,116 @@ export default function EventDetailPage() {
                   </div>
                 )
               })}
+            </div>
+          </section>
+        )}
+
+        {/* 7 · ALERT MANAGEMENT (admin only) ───────────────── */}
+        {isAdmin && (
+          <section className="mt-2">
+            <div className="border-t border-zinc-800/60 pt-8">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">
+                  Alerts
+                  {alerts.length > 0 && (
+                    <span className="ml-2 text-zinc-600 font-normal normal-case">
+                      {alerts.length} active
+                    </span>
+                  )}
+                </p>
+                <button
+                  onClick={() => setShowAlertForm(v => !v)}
+                  className="text-xs text-orange-500 hover:text-orange-400 transition-colors"
+                >
+                  {showAlertForm ? 'Cancel' : '+ New Alert'}
+                </button>
+              </div>
+
+              {/* Create form */}
+              {showAlertForm && (
+                <form onSubmit={handleCreateAlert} className="mb-4 bg-zinc-900 border border-zinc-700 rounded-xl p-4 space-y-3">
+                  <input
+                    value={alertTitle}
+                    onChange={e => setAlertTitle(e.target.value)}
+                    placeholder="Alert title"
+                    maxLength={120}
+                    required
+                    className="input"
+                  />
+                  <textarea
+                    value={alertMessage}
+                    onChange={e => setAlertMessage(e.target.value)}
+                    placeholder="Additional details (optional)"
+                    rows={2}
+                    className="input resize-none"
+                  />
+                  <div className="flex items-center gap-3">
+                    <select
+                      value={alertSeverity}
+                      onChange={e => setAlertSeverity(e.target.value)}
+                      className="input flex-1"
+                    >
+                      <option value="info">Info</option>
+                      <option value="warning">Warning</option>
+                      <option value="critical">Critical</option>
+                    </select>
+                    <button
+                      type="submit"
+                      disabled={!alertTitle.trim() || alertSubmitting}
+                      className="flex-1 bg-orange-600 hover:bg-orange-500 disabled:opacity-40 disabled:pointer-events-none text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors"
+                    >
+                      {alertSubmitting ? 'Posting…' : 'Post Alert'}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Active alerts list */}
+              {alerts.length === 0 ? (
+                <p className="text-xs text-zinc-600 py-1">No active alerts.</p>
+              ) : (
+                <div className="space-y-2">
+                  {alerts.map(alert => (
+                    <div
+                      key={alert.id}
+                      className={`flex items-start justify-between gap-3 rounded-xl px-4 py-3 border ${
+                        alert.severity === 'critical' ? 'bg-red-950/20 border-red-900/40' :
+                        alert.severity === 'warning'  ? 'bg-orange-950/15 border-orange-900/40' :
+                                                        'bg-zinc-900 border-zinc-800'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2.5 min-w-0">
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5 ${
+                          alert.severity === 'critical' ? 'bg-red-500' :
+                          alert.severity === 'warning'  ? 'bg-orange-500' :
+                                                          'bg-zinc-500'
+                        }`} />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs font-semibold text-zinc-200">{alert.title}</p>
+                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium capitalize ${
+                              alert.severity === 'critical' ? 'text-red-400 bg-red-500/10' :
+                              alert.severity === 'warning'  ? 'text-orange-400 bg-orange-500/10' :
+                                                              'text-zinc-500 bg-zinc-800'
+                            }`}>
+                              {alert.severity}
+                            </span>
+                          </div>
+                          {alert.message && (
+                            <p className="text-xs text-zinc-500 mt-0.5">{alert.message}</p>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => deactivateAlert(alert.id)}
+                        className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors flex-shrink-0 mt-0.5"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </section>
         )}
