@@ -6,6 +6,28 @@ import { createClient } from '@/lib/supabase/client'
 import { formatICSTime, formatDate, formatICSDateTime, getInitials } from '@/lib/utils'
 import { getPositionLabel } from '@/lib/ics-positions'
 import Link from 'next/link'
+import type { EventMeeting } from '@/types'
+import { NotificationBell } from '@/components/NotificationBell'
+
+function buildCountdown(startIso: string, endIso: string): { label: string; color: string } {
+  const now   = Date.now()
+  const start = new Date(startIso).getTime()
+  const end   = new Date(endIso).getTime()
+  if (now >= end)   return { label: 'Ended',       color: 'text-[#6B7280]' }
+  if (now >= start) return { label: 'In progress', color: 'text-[#22C55E]' }
+  const diff = start - now
+  const mins = Math.floor(diff / 60_000)
+  const isSoon = diff <= 15 * 60_000
+  let label: string
+  if (mins === 0)   label = 'Starting now'
+  else if (mins < 60) label = `Starts in ${mins}m`
+  else {
+    const hrs = Math.floor(mins / 60)
+    const rem = mins % 60
+    label = rem === 0 ? `Starts in ${hrs}h` : `Starts in ${hrs}h ${rem}m`
+  }
+  return { label, color: isSoon ? 'text-[#F59E0B]' : 'text-[#6B7280]' }
+}
 
 // Resolve the direct supervisor position in the ICS hierarchy
 function getSupervisorPosition(icsPosition: string): string | null {
@@ -48,6 +70,14 @@ export default function EventDetailPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
+  // Meetings (upcoming meetings this user is invited to, or all if admin)
+  const [meetings, setMeetings] = useState<EventMeeting[]>([])
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0)
+  // Countdown ticker (re-renders every 30 s)
+  const [tick, setTick] = useState(0)
+  // Invite toast — shown when user has unread meeting notifications
+  const [inviteToast, setInviteToast] = useState<{ title: string; body: string | null; meeting_id: string | null } | null>(null)
+
   // Alert form state
   const [showAlertForm, setShowAlertForm] = useState(false)
   const [alertTitle, setAlertTitle] = useState('')
@@ -59,6 +89,10 @@ export default function EventDetailPage() {
 
   useEffect(() => { load() }, [id])
   useEffect(() => { setAlertExpanded(false) }, [alerts])
+  useEffect(() => {
+    const t = setInterval(() => setTick(v => v + 1), 30_000)
+    return () => clearInterval(t)
+  }, [])
 
   async function load() {
     const supabase = createClient()
@@ -110,6 +144,22 @@ export default function EventDetailPage() {
       setProfileMap(map)
     }
 
+    // Load meetings this user is invited to (or all if admin)
+    await loadMeetings(user.id, p?.role === 'admin')
+
+    // Load unread notification count + first unread for invite toast
+    const { data: unreadNotifs } = await supabase
+      .from('in_app_notifications')
+      .select('title, body, meeting_id')
+      .eq('user_id', user.id)
+      .eq('event_id', id)
+      .eq('is_read', false)
+      .order('created_at', { ascending: false })
+    setUnreadNotifCount((unreadNotifs ?? []).length)
+    if (unreadNotifs && unreadNotifs.length > 0) {
+      setInviteToast(unreadNotifs[0] as any)
+    }
+
     // Fetch recent activity for current user in active OP
     const activeOpItem = (opData ?? []).find((o: any) => o.status === 'active')
     if (activeOpItem) {
@@ -124,6 +174,37 @@ export default function EventDetailPage() {
           .order('entry_time', { ascending: false })
           .limit(4)
         setRecentEntries(entries ?? [])
+      }
+    }
+  }
+
+  async function loadMeetings(userId: string, isAdmin: boolean) {
+    const supabase = createClient()
+    const now = new Date().toISOString()
+    if (isAdmin) {
+      const { data } = await supabase
+        .from('event_meetings')
+        .select('*')
+        .eq('event_id', id)
+        .eq('is_cancelled', false)
+        .order('start_time')
+      setMeetings((data ?? []) as EventMeeting[])
+    } else {
+      const { data: invites } = await supabase
+        .from('meeting_invitees')
+        .select('meeting_id')
+        .eq('user_id', userId)
+      const ids = (invites ?? []).map((i: any) => i.meeting_id)
+      if (ids.length > 0) {
+        const { data } = await supabase
+          .from('event_meetings')
+          .select('*')
+          .eq('event_id', id)
+          .eq('is_cancelled', false)
+          .in('id', ids)
+          .gte('start_time', now)
+          .order('start_time')
+        setMeetings((data ?? []) as EventMeeting[])
       }
     }
   }
@@ -273,7 +354,7 @@ export default function EventDetailPage() {
 
       {/* ── STICKY HEADER ─────────────────────────────────────── */}
       <header className="sticky top-0 z-20 bg-[#0B0F14]/95 backdrop-blur-sm border-b border-[#232B36]/70">
-        <div className="px-4 py-2.5 sm:py-3 max-w-2xl mx-auto flex items-center justify-between gap-4">
+        <div className="px-4 py-2.5 sm:py-3 max-w-2xl mx-auto flex items-center gap-4">
           <Link
             href="/events"
             className="flex-shrink-0 inline-flex items-center gap-1.5 text-xs text-[#6B7280] hover:text-[#E5E7EB] transition-colors"
@@ -283,7 +364,7 @@ export default function EventDetailPage() {
             </svg>
             Events
           </Link>
-          <div className="min-w-0 text-right">
+          <div className="min-w-0 flex-1 text-right">
             <p className="text-sm font-semibold text-[#E5E7EB] truncate">{event.name}</p>
             <div className="flex items-center justify-end gap-1.5 mt-0.5 flex-wrap">
               {event.incident_number && (
@@ -305,8 +386,38 @@ export default function EventDetailPage() {
               )}
             </div>
           </div>
+          {currentUserId && <NotificationBell userId={currentUserId} />}
         </div>
       </header>
+
+      {/* ── INVITE TOAST ─────────────────────────────────────────── */}
+      {inviteToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 w-full max-w-sm px-4">
+          <div className="bg-[#161D26] border border-[#FF5A1F]/30 rounded-2xl px-4 py-3 shadow-2xl flex items-start gap-3">
+            <span className="w-2 h-2 rounded-full bg-[#FF5A1F] flex-shrink-0 mt-1.5 animate-pulse" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-[#E5E7EB]">{inviteToast.title}</p>
+              {inviteToast.body && (
+                <p className="text-xs text-[#9CA3AF] mt-0.5 truncate">{inviteToast.body}</p>
+              )}
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Link
+                href={`/events/${id}/meetings`}
+                onClick={() => setInviteToast(null)}
+                className="text-xs font-semibold text-[#FF5A1F] hover:text-[#FF6A33] transition-colors"
+              >
+                View →
+              </Link>
+              <button onClick={() => setInviteToast(null)} className="text-[#6B7280] hover:text-[#9CA3AF] transition-colors">
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── CONFIRMATION MODAL ────────────────────────────────── */}
       {confirming && (
@@ -416,19 +527,42 @@ export default function EventDetailPage() {
             </button>
 
             {/* Next meeting cell */}
-            <div className="px-4 py-3 flex items-center gap-2.5">
-              <svg className={`w-3.5 h-3.5 flex-shrink-0 ${event?.next_meeting ? 'text-[#FF5A1F]' : 'text-[#232B36]'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
-              </svg>
-              <div className="min-w-0">
-                <p className="text-xs text-[#6B7280] uppercase tracking-wide font-medium">Next Meeting</p>
-                <p className={`text-xs font-semibold mt-0.5 truncate ${
-                  event?.next_meeting ? 'text-[#E5E7EB]' : 'text-[#6B7280]'
-                }`}>
-                  {event?.next_meeting ?? 'None scheduled'}
-                </p>
-              </div>
-            </div>
+            {(() => {
+              const nextMtg = meetings.find(m => new Date(m.start_time) > new Date()) ?? meetings[0] ?? null
+              return (
+                <Link
+                  href={`/events/${id}/meetings`}
+                  className="px-4 py-3 flex items-center gap-2.5 hover:bg-white/[0.02] transition-colors"
+                >
+                  <svg className={`w-3.5 h-3.5 flex-shrink-0 ${nextMtg ? 'text-[#FF5A1F]' : 'text-[#232B36]'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+                  </svg>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-[#6B7280] uppercase tracking-wide font-medium">Next Meeting</p>
+                    <p className={`text-xs font-semibold mt-0.5 truncate ${nextMtg ? 'text-[#E5E7EB]' : 'text-[#6B7280]'}`}>
+                      {nextMtg ? nextMtg.title : 'None scheduled'}
+                    </p>
+                            {nextMtg && (
+                      <p className="text-xs font-mono text-[#FF5A1F]/70 truncate">{formatICSDateTime(nextMtg.start_time)}</p>
+                    )}
+                    {nextMtg && (() => {
+                      // tick re-renders this every 30 s
+                      void tick
+                      const { label, color } = buildCountdown(nextMtg.start_time, nextMtg.end_time)
+                      return <p className={`text-[10px] font-medium mt-0.5 ${color}`}>{label}</p>
+                    })()}
+                    {nextMtg?.location && (
+                      <p className="text-xs text-[#6B7280] truncate">{nextMtg.location}</p>
+                    )}
+                  </div>
+                  {unreadNotifCount > 0 && (
+                    <span className="flex-shrink-0 w-4 h-4 rounded-full bg-[#FF5A1F] text-white text-[10px] font-bold flex items-center justify-center">
+                      {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
+                    </span>
+                  )}
+                </Link>
+              )
+            })()}
           </div>
 
           {/* Expanded alert details */}
@@ -550,6 +684,74 @@ export default function EventDetailPage() {
               </svg>
               Log ICS 214 – OP {activeOp.period_number}
             </Link>
+          </div>
+        )}
+
+        {/* 4b · MEETINGS ───────────────────────────────────── */}
+        {(meetings.length > 0 || isAdmin) && (
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide">
+                {isAdmin ? 'Meetings' : 'My Meetings'}
+              </p>
+              <Link
+                href={`/events/${id}/meetings`}
+                className="inline-flex items-center gap-1 text-xs font-medium text-[#6B7280] hover:text-[#E5E7EB] transition-colors py-1 px-2 -mr-2 rounded-lg hover:bg-[#161D26]"
+              >
+                {isAdmin ? 'Manage' : 'View all'}
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
+              </Link>
+            </div>
+            {meetings.length === 0 ? (
+              <div className="bg-[#161D26] border border-[#232B36] rounded-2xl px-4 py-4 flex items-center justify-between">
+                <p className="text-sm text-[#6B7280]">No meetings scheduled yet.</p>
+                {isAdmin && (
+                  <Link href={`/events/${id}/meetings`} className="text-xs text-[#FF5A1F] hover:text-[#FF6A33] font-medium transition-colors">
+                    Schedule one →
+                  </Link>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {meetings.slice(0, 3).map(mtg => {
+                  const start = new Date(mtg.start_time)
+                  const isPast = start < new Date()
+                  return (
+                    <Link
+                      key={mtg.id}
+                      href={`/events/${id}/meetings`}
+                      className="block bg-[#161D26] border border-[#232B36] rounded-2xl px-4 py-3 hover:bg-[#1a2235] hover:border-[#3a4555] transition-all"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className={`text-sm font-semibold truncate ${isPast ? 'text-[#6B7280]' : 'text-[#E5E7EB]'}`}>
+                            {mtg.title}
+                          </p>
+                          <p className="text-xs font-mono text-[#FF5A1F]/80 mt-0.5">
+                            {formatICSDateTime(mtg.start_time)}
+                          </p>
+                          {mtg.location && (
+                            <p className="text-xs text-[#6B7280] mt-0.5 truncate">{mtg.location}</p>
+                          )}
+                        </div>
+                        {isPast ? (
+                          <span className="flex-shrink-0 text-xs text-[#6B7280] bg-[#121821] px-2 py-0.5 rounded-full">Past</span>
+                        ) : (
+                          <span className="flex-shrink-0 text-xs text-[#22C55E] bg-[#22C55E]/10 px-2 py-0.5 rounded-full ring-1 ring-inset ring-[#22C55E]/20">Upcoming</span>
+                        )}
+                      </div>
+                    </Link>
+                  )
+                })}
+                {meetings.length > 3 && (
+                  <Link href={`/events/${id}/meetings`} className="block text-center text-xs text-[#6B7280] hover:text-[#9CA3AF] py-2 transition-colors">
+                    +{meetings.length - 3} more meeting{meetings.length - 3 !== 1 ? 's' : ''}
+                  </Link>
+                )}
+              </div>
+            )}
           </div>
         )}
 

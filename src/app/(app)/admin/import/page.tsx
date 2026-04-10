@@ -1,9 +1,9 @@
- 'use client'
+'use client'
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { HomeButton } from '@/components/ui/HomeButton'
 import { Button } from '@/components/ui/Button'
+import Link from 'next/link'
 
 interface ImportRow {
   full_name: string
@@ -16,29 +16,27 @@ interface ImportRow {
 }
 
 export default function ImportProfilesPage() {
-  const [rows, setRows] = useState<ImportRow[]>([])
+  const [rows,      setRows]      = useState<ImportRow[]>([])
   const [importing, setImporting] = useState(false)
-  const [results, setResults] = useState<{ name: string; status: 'success' | 'error'; message?: string }[]>([])
-  const [step, setStep] = useState<'upload' | 'preview' | 'done'>('upload')
+  const [results,   setResults]   = useState<{ name: string; status: 'success' | 'error'; message?: string }[]>([])
+  const [step,      setStep]      = useState<'upload' | 'preview' | 'done'>('upload')
 
   function parseCSV(text: string): ImportRow[] {
     const lines = text.trim().split('\n')
     if (lines.length < 2) return []
-
     const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/\s+/g, '_'))
-
     return lines.slice(1).map(line => {
       const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''))
       const row: any = {}
       headers.forEach((h, i) => { row[h] = values[i] ?? '' })
       return {
-        full_name: row.full_name ?? row.name ?? '',
-        email: row.email ?? '',
-        phone: row.phone ?? '',
+        full_name:      row.full_name ?? row.name ?? '',
+        email:          row.email ?? '',
+        phone:          row.phone ?? '',
         default_agency: row.default_agency ?? row.agency ?? '',
-        default_unit: row.default_unit ?? row.unit ?? '',
-        role: row.role ?? 'member',
-        notes: row.notes ?? '',
+        default_unit:   row.default_unit ?? row.unit ?? '',
+        role:           row.role ?? 'member',
+        notes:          row.notes ?? '',
       }
     }).filter(r => r.full_name && r.email)
   }
@@ -47,10 +45,9 @@ export default function ImportProfilesPage() {
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = (ev) => {
+    reader.onload = ev => {
       const text = ev.target?.result as string
-      const parsed = parseCSV(text)
-      setRows(parsed)
+      setRows(parseCSV(text))
       setStep('preview')
     }
     reader.readAsText(file)
@@ -66,17 +63,11 @@ export default function ImportProfilesPage() {
       try {
         const { data, error } = await supabase.rpc('admin_create_profile', {
           p_full_name: row.full_name,
-          p_email: row.email,
-          p_role: ['admin', 'supervisor', 'member'].includes(row.role) ? row.role : 'member',
-          p_agency: row.default_agency || null,
+          p_email:     row.email,
+          p_role:      ['admin', 'supervisor', 'member'].includes(row.role) ? row.role : 'member',
+          p_agency:    row.default_agency || null,
         })
-
-        if (error) {
-          newResults.push({ name: row.full_name, status: 'error' as const, message: error.message })
-          continue
-        }
-
-        // Update additional fields
+        if (error) { newResults.push({ name: row.full_name, status: 'error' as const, message: error.message }); continue }
         if (row.phone || row.default_unit || row.notes) {
           await supabase.from('profiles').update({
             phone: row.phone || null,
@@ -84,7 +75,6 @@ export default function ImportProfilesPage() {
             notes: row.notes || null,
           }).eq('id', data)
         }
-
         newResults.push({ name: row.full_name, status: 'success' as const })
       } catch (err: any) {
         newResults.push({ name: row.full_name, status: 'error' as const, message: err.message })
@@ -97,119 +87,153 @@ export default function ImportProfilesPage() {
   }
 
   const successCount = results.filter(r => r.status === 'success').length
-  const errorCount = results.filter(r => r.status === 'error').length
+  const errorCount   = results.filter(r => r.status === 'error').length
 
   return (
-    <div className="min-h-screen bg-zinc-950 px-4 py-8 max-w-2xl mx-auto">
-      <HomeButton />
+    <div className="min-h-screen bg-[#0B0F14] flex flex-col">
 
-      <div className="mb-6">
-        <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider mb-1">Admin</p>
-        <h1 className="text-xl font-semibold text-zinc-100">Import Profiles</h1>
-        <p className="text-sm text-zinc-500 mt-1">Upload a CSV to create multiple profiles at once.</p>
-      </div>
+      {/* ── HEADER ─────────────────────────────────────────────── */}
+      <header className="sticky top-0 z-20 bg-[#0B0F14]/95 backdrop-blur-sm border-b border-[#232B36]/70">
+        <div className="px-4 py-2.5 max-w-2xl mx-auto flex items-center justify-between gap-4">
+          <Link href="/admin/people"
+            className="inline-flex items-center gap-1.5 text-xs text-[#6B7280] hover:text-[#E5E7EB] transition-colors">
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 12H5M12 5l-7 7 7 7"/>
+            </svg>
+            People
+          </Link>
+          <p className="text-sm font-semibold text-[#E5E7EB]">Import Profiles</p>
+        </div>
+      </header>
 
-      {/* CSV format guide */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-6">
-        <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider mb-2">Required CSV Format</p>
-        <div className="bg-zinc-950 rounded-lg p-3 overflow-x-auto">
-          <p className="text-xs font-mono text-green-400 whitespace-nowrap">
-            full_name,email,phone,default_agency,default_unit,role,notes
-          </p>
-          <p className="text-xs font-mono text-zinc-400 whitespace-nowrap mt-1">
-            Anthony Watts,watts@dfd.gov,313-555-0100,Detroit Fire Department,Engine 23,admin,
-          </p>
-          <p className="text-xs font-mono text-zinc-400 whitespace-nowrap">
-            Parrish Eason,eason@dfd.gov,313-555-0101,Detroit Fire Department,Ladder 5,member,
+      <main className="flex-1 px-4 pt-6 pb-12 max-w-2xl mx-auto w-full space-y-5">
+
+        {/* CSV format reference */}
+        <div className="bg-[#161D26] border border-[#232B36] rounded-2xl p-4">
+          <p className="text-xs text-[#6B7280] font-mono uppercase tracking-wider mb-3">Required CSV Format</p>
+          <div className="bg-[#0B0F14] rounded-xl p-3 overflow-x-auto">
+            <p className="text-xs font-mono text-[#22C55E] whitespace-nowrap">
+              full_name,email,phone,default_agency,default_unit,role,notes
+            </p>
+            <p className="text-xs font-mono text-[#6B7280] whitespace-nowrap mt-1">
+              Anthony Watts,watts@dfd.gov,313-555-0100,Detroit Fire Department,Engine 23,admin,
+            </p>
+            <p className="text-xs font-mono text-[#6B7280] whitespace-nowrap">
+              Parrish Eason,eason@dfd.gov,313-555-0101,Detroit Fire Department,Ladder 5,member,
+            </p>
+          </div>
+          <p className="text-xs text-[#6B7280]/60 mt-2.5">
+            Role must be: <span className="font-mono">member</span>, <span className="font-mono">supervisor</span>, or <span className="font-mono">admin</span>. Phone, unit, and notes are optional.
           </p>
         </div>
-        <p className="text-xs text-zinc-600 mt-2">
-          Role must be: member, supervisor, or admin. Phone, unit, and notes are optional.
-        </p>
-      </div>
 
-      {/* Upload step */}
-      {step === 'upload' && (
-        <div className="bg-zinc-900 border border-zinc-800 border-dashed rounded-xl p-8 text-center">
-          <p className="text-zinc-400 text-sm mb-4">Select your CSV file</p>
-          <label className="bg-orange-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-orange-500 transition-colors cursor-pointer">
-            Choose CSV File
-            <input type="file" accept=".csv" className="hidden" onChange={handleFile} />
-          </label>
-        </div>
-      )}
-
-      {/* Preview step */}
-      {step === 'preview' && rows.length > 0 && (
-        <div className="space-y-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
-              <p className="text-sm font-medium text-zinc-200">
-                {rows.length} profiles ready to import
-              </p>
-              <button onClick={() => { setRows([]); setStep('upload') }}
-                className="text-xs text-zinc-500 hover:text-zinc-300">
-                Change file
-              </button>
+        {/* ── UPLOAD STEP ─────────────────────────────────────── */}
+        {step === 'upload' && (
+          <div className="bg-[#161D26] border border-[#232B36] border-dashed rounded-2xl p-10 flex flex-col items-center gap-4">
+            <div className="w-10 h-10 rounded-full bg-[#121821] border border-[#232B36] flex items-center justify-center">
+              <svg className="w-5 h-5 text-[#6B7280]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
             </div>
-            <div className="divide-y divide-zinc-800 max-h-80 overflow-y-auto">
-              {rows.map((row, i) => (
-                <div key={i} className="px-4 py-3 flex items-center gap-3">
-                  <div className="w-7 h-7 rounded-full bg-zinc-700 flex items-center justify-center text-xs font-mono text-zinc-300 flex-shrink-0">
-                    {row.full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+            <div className="text-center">
+              <p className="text-sm font-medium text-[#E5E7EB]">Select your CSV file</p>
+              <p className="text-xs text-[#6B7280] mt-0.5">One profile per row, headers required</p>
+            </div>
+            <label className="bg-[#FF5A1F] hover:bg-[#FF6A33] active:bg-[#E14A12] active:scale-[0.97] text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer shadow-sm">
+              Choose CSV File
+              <input type="file" accept=".csv" className="hidden" onChange={handleFile} />
+            </label>
+          </div>
+        )}
+
+        {/* ── PREVIEW STEP ────────────────────────────────────── */}
+        {step === 'preview' && rows.length > 0 && (
+          <div className="space-y-4">
+            <div className="bg-[#161D26] border border-[#232B36] rounded-2xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-[#232B36] flex items-center justify-between">
+                <p className="text-sm font-semibold text-[#E5E7EB]">
+                  {rows.length} profile{rows.length !== 1 ? 's' : ''} ready to import
+                </p>
+                <button
+                  onClick={() => { setRows([]); setStep('upload') }}
+                  className="text-xs text-[#6B7280] hover:text-[#9CA3AF] transition-colors"
+                >
+                  Change file
+                </button>
+              </div>
+              <div className="divide-y divide-[#232B36]/60 max-h-72 overflow-y-auto">
+                {rows.map((row, i) => (
+                  <div key={i} className="px-4 py-3 flex items-center gap-3">
+                    <div className="w-7 h-7 rounded-full bg-[#232B36] flex items-center justify-center text-xs font-mono text-[#9CA3AF] flex-shrink-0">
+                      {row.full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-[#E5E7EB]">{row.full_name}</p>
+                      <p className="text-xs text-[#6B7280] truncate">
+                        {row.email} · {row.default_agency || 'No agency'} ·{' '}
+                        <span className="font-mono">{row.role}</span>
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-zinc-200">{row.full_name}</p>
-                    <p className="text-xs text-zinc-500">{row.email} · {row.default_agency || 'No agency'} · {row.role}</p>
-                  </div>
+                ))}
+              </div>
+            </div>
+
+            <Button onClick={runImport} loading={importing} className="w-full">
+              Import {rows.length} Profile{rows.length !== 1 ? 's' : ''}
+            </Button>
+          </div>
+        )}
+
+        {/* ── DONE STEP ───────────────────────────────────────── */}
+        {step === 'done' && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-[#22C55E]/8 border border-[#22C55E]/20 rounded-2xl p-4 text-center">
+                <p className="text-2xl font-bold text-[#22C55E]">{successCount}</p>
+                <p className="text-xs text-[#22C55E]/70 mt-0.5 font-medium">Imported</p>
+              </div>
+              <div className={`border rounded-2xl p-4 text-center ${
+                errorCount > 0
+                  ? 'bg-[#EF4444]/8 border-[#EF4444]/20'
+                  : 'bg-[#161D26] border-[#232B36]'
+              }`}>
+                <p className={`text-2xl font-bold ${errorCount > 0 ? 'text-[#EF4444]' : 'text-[#6B7280]'}`}>
+                  {errorCount}
+                </p>
+                <p className={`text-xs mt-0.5 font-medium ${errorCount > 0 ? 'text-[#EF4444]/70' : 'text-[#6B7280]'}`}>
+                  Failed
+                </p>
+              </div>
+            </div>
+
+            {results.length > 0 && (
+              <div className="bg-[#161D26] border border-[#232B36] rounded-2xl overflow-hidden">
+                <div className="divide-y divide-[#232B36]/60 max-h-80 overflow-y-auto">
+                  {results.map((r, i) => (
+                    <div key={i} className="px-4 py-3 flex items-center gap-3">
+                      <span className={`text-sm flex-shrink-0 ${r.status === 'success' ? 'text-[#22C55E]' : 'text-[#EF4444]'}`}>
+                        {r.status === 'success' ? '✓' : '✗'}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-[#E5E7EB]">{r.name}</p>
+                        {r.message && <p className="text-xs text-[#EF4444] mt-0.5">{r.message}</p>}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
+
+            <button
+              onClick={() => { setRows([]); setResults([]); setStep('upload') }}
+              className="w-full bg-[#161D26] text-[#9CA3AF] border border-[#232B36] px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-[#1a2235] hover:border-[#3a4555] transition-colors"
+            >
+              Import another file
+            </button>
           </div>
-
-          <Button onClick={runImport} loading={importing} className="w-full">
-            Import {rows.length} Profiles
-          </Button>
-        </div>
-      )}
-
-      {/* Done step */}
-      {step === 'done' && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-green-900/30 border border-green-800 rounded-xl p-4 text-center">
-              <p className="text-2xl font-semibold text-green-400">{successCount}</p>
-              <p className="text-xs text-green-600 mt-0.5">Imported</p>
-            </div>
-            <div className="bg-red-900/30 border border-red-800 rounded-xl p-4 text-center">
-              <p className="text-2xl font-semibold text-red-400">{errorCount}</p>
-              <p className="text-xs text-red-600 mt-0.5">Failed</p>
-            </div>
-          </div>
-
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
-            <div className="divide-y divide-zinc-800 max-h-96 overflow-y-auto">
-              {results.map((r, i) => (
-                <div key={i} className="px-4 py-3 flex items-center gap-3">
-                  <span className={`text-sm ${r.status === 'success' ? 'text-green-400' : 'text-red-400'}`}>
-                    {r.status === 'success' ? '✓' : '×'}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-zinc-200">{r.name}</p>
-                    {r.message && <p className="text-xs text-red-400 mt-0.5">{r.message}</p>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <button
-            onClick={() => { setRows([]); setResults([]); setStep('upload') }}
-            className="w-full bg-zinc-800 text-zinc-200 border border-zinc-700 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-zinc-700 transition-colors">
-            Import Another File
-          </button>
-        </div>
-      )}
+        )}
+      </main>
     </div>
   )
 }

@@ -94,3 +94,88 @@ export interface ActivityEntry {
   updated_at: string
   profile?: Profile
 }
+
+export type MapMarkerType = 'incident' | 'resource' | 'hazard'
+
+export interface MapMarker {
+  id: string
+  event_id: string
+  lat: number
+  lng: number
+  type: MapMarkerType
+  title: string
+  description: string | null
+  created_by: string
+  created_at: string
+}
+
+export interface UserLocation {
+  id: string
+  event_id: string
+  user_id: string
+  lat: number
+  lng: number
+  last_updated: string
+}
+
+export type BoundaryShape = 'circle' | 'rectangle' | 'polygon'
+export type BoundaryZoneType = 'perimeter' | 'hazard_zone' | 'staging_area' | 'search_area'
+
+export interface EventBoundary {
+  id: string
+  event_id: string
+  shape: BoundaryShape
+  /** circle: {center:[lat,lng], radiusMeters:number}
+   *  rectangle: {bounds:[[swLat,swLng],[neLat,neLng]]}
+   *  polygon: {points:[[lat,lng],...]} */
+  geometry: Record<string, any>
+  zone_type: BoundaryZoneType
+  title: string
+  description: string | null
+  created_by: string
+  created_at: string
+}
+
+// ── Meeting system ────────────────────────────────────────────
+
+export interface EventMeeting {
+  id: string
+  event_id: string
+  operational_period_id: string | null
+  title: string
+  description: string | null
+  start_time: string
+  end_time: string
+  location: string | null
+  created_by: string
+  created_at: string
+  is_cancelled: boolean
+}
+
+export interface MeetingInvitee {
+  id: string
+  meeting_id: string
+  user_id: string
+  invited_at: string
+}
+
+export interface InAppNotification {
+  id: string
+  user_id: string
+  event_id: string | null
+  meeting_id: string | null
+  title: string
+  body: string | null
+  is_read: boolean
+  created_at: string
+}
+
+export type MeetingRsvpStatus = 'accepted' | 'maybe' | 'declined'
+
+export interface MeetingRSVP {
+  id: string
+  meeting_id: string
+  user_id: string
+  status: MeetingRsvpStatus
+  updated_at: string
+}
