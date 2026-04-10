@@ -110,6 +110,10 @@ export default function BuildOrgPage() {
   // Dual hat admin panel
   const [showDualHatPanel, setShowDualHatPanel] = useState(false)
 
+  // ─── Drag-and-drop state ──────────────────────────────────────
+  const [draggingAssignmentId, setDraggingAssignmentId] = useState<string | null>(null)
+  const [dragOverTeamId, setDragOverTeamId] = useState<string | null>(null)
+
   // ─── Profile creation ─────────────────────────────────────────
   const [showCreateProfile, setShowCreateProfile] = useState(false)
   const [newName, setNewName] = useState('')
@@ -434,6 +438,37 @@ export default function BuildOrgPage() {
         setAssignments(prev => prev.map(a => a.id === partner.id ? { ...a, dual_hatted: false } : a))
       }
     }
+  }
+
+  // ─── Drag-and-drop reassign ───────────────────────────────────
+  async function reassignPersonToTeam(assignmentId: string, targetTeamId: string) {
+    const assignment = assignments.find(a => a.id === assignmentId)
+    if (!assignment || assignment.team_id === targetTeamId) return
+
+    // If the person is a team leader, ensure the new team doesn't already have one
+    if (assignment.ics_position === 'team_leader') {
+      const existingLeader = (assignmentsByTeamId[targetTeamId] ?? []).find(
+        (a: any) => a.ics_position === 'team_leader'
+      )
+      if (existingLeader) {
+        const targetName = teams.find(t => t.id === targetTeamId)?.name ?? 'That team'
+        setError(`${targetName} already has a Team Leader. Remove them first.`)
+        return
+      }
+    }
+
+    setSaving(true); setError(null)
+    const supabase = createClient()
+    const { error: err } = await supabase
+      .from('assignments')
+      .update({ team_id: targetTeamId })
+      .eq('id', assignmentId)
+
+    if (err) { setError(err.message); setSaving(false); return }
+    setAssignments(prev => prev.map(a =>
+      a.id === assignmentId ? { ...a, team_id: targetTeamId } : a
+    ))
+    setSaving(false)
   }
 
   // ─── Delete division/group/team ───────────────────────────────
@@ -833,8 +868,18 @@ export default function BuildOrgPage() {
   // ─── Person badge ─────────────────────────────────────────────
   const renderPersonBadge = (assignmentRecord: any, onRemove: () => void) => {
     const p = profileMap[assignmentRecord.user_id]
+    const isDragging = draggingAssignmentId === assignmentRecord.id
     return (
-      <div className="flex items-center gap-2">
+      <div
+        className={`flex items-center gap-2 ${isAdmin ? 'cursor-grab active:cursor-grabbing' : ''} ${isDragging ? 'opacity-40' : ''}`}
+        draggable={isAdmin}
+        onDragStart={e => {
+          setDraggingAssignmentId(assignmentRecord.id)
+          e.dataTransfer.effectAllowed = 'move'
+          e.dataTransfer.setData('assignment-id', assignmentRecord.id)
+        }}
+        onDragEnd={() => { setDraggingAssignmentId(null); setDragOverTeamId(null) }}
+      >
         <div className="w-6 h-6 rounded-full bg-zinc-700 flex items-center justify-center text-xs font-mono text-zinc-300 flex-shrink-0">
           {getInitials(p?.full_name ?? '?')}
         </div>
@@ -905,9 +950,19 @@ export default function BuildOrgPage() {
     const isAssigningLeader = assignTarget?.type === 'team' && assignTarget?.unitId === team.id
     const isAssigningMember = assignTarget?.type === 'member' && assignTarget?.unitId === team.id
 
+    const isDragTarget = dragOverTeamId === team.id
     return (
       <div key={team.id}
-        className={`rounded-lg border border-zinc-800 overflow-hidden ${depth > 0 ? 'ml-4' : ''}`}>
+        className={`rounded-lg border ${isDragTarget ? 'border-orange-500 bg-orange-950/10' : 'border-zinc-800'} overflow-hidden ${depth > 0 ? 'ml-4' : ''}`}
+        onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverTeamId(team.id) }}
+        onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverTeamId(null) }}
+        onDrop={async e => {
+          e.preventDefault()
+          const aid = e.dataTransfer.getData('assignment-id')
+          setDragOverTeamId(null)
+          if (aid) await reassignPersonToTeam(aid, team.id)
+        }}
+      >
         {/* Team header */}
         <div className="flex items-center gap-2 px-3 py-2 bg-zinc-800/60">
           <span className="text-xs font-mono text-zinc-500 uppercase">Team</span>
@@ -1236,6 +1291,8 @@ export default function BuildOrgPage() {
   const unassignedGroups = groups.filter(g => !g.division_id)
   // Unassigned teams (no group, no division)
   const unassignedTeams = opsTeams.filter(t => !t.group_id && !t.division_id)
+  // Show drag hint when an admin has teams to drag between
+  const showDragHint = isAdmin && opsTeams.length > 1
 
   return (
     <div className="min-h-screen bg-zinc-950 px-4 py-8 max-w-2xl mx-auto">
@@ -1429,6 +1486,11 @@ export default function BuildOrgPage() {
       {/* ── OPERATIONS ── */}
       {activeTab === 'ops' && (
         <div className="space-y-4">
+          {showDragHint && (
+            <p className="text-[11px] text-zinc-600 font-mono text-center">
+              Drag person badges between teams to reassign
+            </p>
+          )}
 
           {/* Operations Ops Section-level positions (Chief/Deputy/Staging) */}
           {sectionAssignments('ops').filter(a =>

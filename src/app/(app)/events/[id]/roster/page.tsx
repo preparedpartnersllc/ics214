@@ -4,7 +4,11 @@ import { useState, useEffect, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { getInitials } from '@/lib/utils'
-import { getPositionLabel, ICS_POSITIONS } from '@/lib/ics-positions'
+import {
+  getPositionLabel, ICS_POSITIONS,
+  COMMAND_STAFF_POSITIONS, OPERATIONS_POSITIONS,
+  PLANNING_POSITIONS, LOGISTICS_POSITIONS, FINANCE_POSITIONS,
+} from '@/lib/ics-positions'
 import Link from 'next/link'
 
 // ── Activity status ──────────────────────────────────────────────
@@ -110,6 +114,14 @@ export default function RosterPage() {
   const [sectionFilter, setSectionFilter] = useState<FilterSection>('All')
   const [unitFilter, setUnitFilter] = useState('')
   const [sortBy, setSortBy] = useState<'rank' | 'alpha'>('rank')
+
+  // ── Reassign modal ────────────────────────────────────────────
+  const [reassigning, setReassigning] = useState<any | null>(null)
+  const [reassignSection, setReassignSection] = useState('operations')
+  const [reassignTeamId, setReassignTeamId] = useState('')
+  const [reassignPosition, setReassignPosition] = useState('')
+  const [reassignSaving, setReassignSaving] = useState(false)
+  const [reassignError, setReassignError] = useState<string | null>(null)
 
   useEffect(() => { loadEvent() }, [eventId])
   useEffect(() => { if (selectedOpId) loadOp(selectedOpId) }, [selectedOpId])
@@ -235,6 +247,94 @@ export default function RosterPage() {
     })
     return opts.sort((a, b) => a.label.localeCompare(b.label))
   }, [assignments, teamById, groupById, divById])
+
+  // ── Reassign helpers ──────────────────────────────────────────
+  const reassignPositions = useMemo(() => {
+    switch (reassignSection) {
+      case 'command':    return COMMAND_STAFF_POSITIONS
+      case 'operations': return OPERATIONS_POSITIONS
+      case 'planning':   return PLANNING_POSITIONS
+      case 'logistics':  return LOGISTICS_POSITIONS
+      case 'finance':    return FINANCE_POSITIONS
+      default:           return []
+    }
+  }, [reassignSection])
+
+  function openReassign(a: any) {
+    // Pre-populate with current assignment context
+    const sec = getSection(a.ics_position).toLowerCase()
+    const initialSection = ['command','operations','planning','logistics','finance'].includes(sec) ? sec : 'operations'
+    const team = teamById[a.team_id]
+    const isOpsTeam = team && !team.name.startsWith('__')
+    setReassigning(a)
+    setReassignSection(initialSection)
+    setReassignTeamId(isOpsTeam ? a.team_id : '')
+    setReassignPosition(a.ics_position)
+    setReassignError(null)
+  }
+
+  async function performReassign() {
+    if (!reassigning || !reassignPosition) { setReassignError('Select a position'); return }
+    setReassignSaving(true); setReassignError(null)
+    const supabase = createClient()
+
+    // Resolve target team
+    const SYS_KEY: Record<string, string> = {
+      command: '__command__', planning: '__planning__',
+      logistics: '__logistics__', finance: '__finance__',
+    }
+    let targetTeamId: string
+
+    if (SYS_KEY[reassignSection]) {
+      const key = SYS_KEY[reassignSection]
+      let t = teams.find(x => x.name === key)
+      if (!t) {
+        const { data } = await supabase.from('teams')
+          .insert({ operational_period_id: selectedOpId, group_id: null, name: key })
+          .select().single()
+        if (!data) { setReassignError('Failed to find section team'); setReassignSaving(false); return }
+        t = data
+        setTeams(prev => [...prev, data])
+      }
+      targetTeamId = t.id
+    } else {
+      if (!reassignTeamId) { setReassignError('Select a team'); setReassignSaving(false); return }
+      targetTeamId = reassignTeamId
+    }
+
+    // Check unique-leader conflicts (e.g. team_leader already exists in that team)
+    const uniqueLeaderPositions = new Set([
+      'team_leader','incident_commander','deputy_incident_commander','safety_officer',
+      'public_information_officer','liaison_officer','agency_representative',
+      'planning_section_chief','operations_section_chief',
+      'logistics_section_chief','finance_admin_section_chief',
+    ])
+    if (uniqueLeaderPositions.has(reassignPosition)) {
+      const conflict = assignments.find(a =>
+        a.id !== reassigning.id &&
+        a.team_id === targetTeamId &&
+        a.ics_position === reassignPosition
+      )
+      if (conflict) {
+        const name = profileMap[conflict.user_id]?.full_name ?? 'Someone'
+        setReassignError(`${name} already holds that position here.`)
+        setReassignSaving(false); return
+      }
+    }
+
+    const { error } = await supabase
+      .from('assignments')
+      .update({ team_id: targetTeamId, ics_position: reassignPosition })
+      .eq('id', reassigning.id)
+
+    if (error) { setReassignError(error.message); setReassignSaving(false); return }
+
+    setAssignments(prev => prev.map(a =>
+      a.id === reassigning.id ? { ...a, team_id: targetTeamId, ics_position: reassignPosition } : a
+    ))
+    setReassigning(null)
+    setReassignSaving(false)
+  }
 
   // ── Filtered + sorted list ─────────────────────────────────────
   const filtered = useMemo(() => {
@@ -414,7 +514,7 @@ export default function RosterPage() {
     const unitContext = unit && unit !== 'Command Staff' && unit !== 'Planning Section'
       && unit !== 'Logistics Section' && unit !== 'Finance / Admin' ? unit : ''
     return (
-      <div className="flex items-center gap-3 px-4 py-2.5">
+      <div className="flex items-center gap-3 px-4 py-2.5 group">
         {/* Avatar */}
         <div className="w-8 h-8 rounded-full bg-[#121821] border border-[#232B36] flex items-center justify-center text-xs font-mono text-[#9CA3AF] flex-shrink-0">
           {getInitials(name)}
@@ -443,6 +543,15 @@ export default function RosterPage() {
             {unitContext ? <span className="text-[#374151]"> · {unitContext}</span> : null}
           </p>
         </div>
+
+        {/* Reassign button — visible on hover */}
+        <button
+          onClick={e => { e.stopPropagation(); openReassign(a) }}
+          className="flex-shrink-0 text-[10px] text-[#374151] hover:text-[#FF5A1F] opacity-0 group-hover:opacity-100 sm:opacity-100 transition-opacity font-mono px-1"
+          title="Reassign"
+        >
+          ⇄
+        </button>
 
         {/* Activity status */}
         {(() => {
@@ -698,6 +807,109 @@ export default function RosterPage() {
           </div>
         )}
       </main>
+
+      {/* ── Quick Reassign Modal ── */}
+      {reassigning && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
+          onClick={() => setReassigning(null)}
+        >
+          <div
+            className="bg-[#161D26] border border-[#232B36] rounded-2xl w-full max-w-sm p-5 space-y-4"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div>
+              <p className="text-xs text-[#6B7280] font-mono uppercase tracking-wider">Reassign</p>
+              <p className="text-base font-semibold text-[#E5E7EB] mt-0.5">
+                {profileMap[reassigning.user_id]?.full_name ?? 'Unknown'}
+              </p>
+              <p className="text-xs text-[#4B5563] mt-0.5">
+                {getPositionLabel(reassigning.ics_position)}
+                {teamById[reassigning.team_id] && !teamById[reassigning.team_id].name.startsWith('__')
+                  ? ` · ${teamById[reassigning.team_id].name}`
+                  : ''}
+              </p>
+            </div>
+
+            {/* Section selector */}
+            <div>
+              <p className="text-xs text-[#6B7280] mb-1.5">Section</p>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  { key: 'command',    label: 'Command' },
+                  { key: 'operations', label: 'Operations' },
+                  { key: 'planning',   label: 'Planning' },
+                  { key: 'logistics',  label: 'Logistics' },
+                  { key: 'finance',    label: 'Finance' },
+                ].map(s => (
+                  <button key={s.key}
+                    onClick={() => { setReassignSection(s.key); setReassignTeamId(''); setReassignPosition('') }}
+                    className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      reassignSection === s.key
+                        ? 'bg-[#FF5A1F] text-white'
+                        : 'bg-[#121821] border border-[#232B36] text-[#6B7280] hover:text-[#E5E7EB] hover:border-[#3a4555]'
+                    }`}>
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Team selector (operations only) */}
+            {reassignSection === 'operations' && (
+              <div>
+                <p className="text-xs text-[#6B7280] mb-1.5">Team</p>
+                <select
+                  value={reassignTeamId}
+                  onChange={e => { setReassignTeamId(e.target.value); setReassignPosition('') }}
+                  className="w-full bg-[#121821] border border-[#232B36] text-[#E5E7EB] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FF5A1F]/50"
+                >
+                  <option value="">Select team…</option>
+                  {teams.filter(t => !t.name.startsWith('__')).map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Position selector */}
+            <div>
+              <p className="text-xs text-[#6B7280] mb-1.5">Position</p>
+              <select
+                value={reassignPosition}
+                onChange={e => setReassignPosition(e.target.value)}
+                className="w-full bg-[#121821] border border-[#232B36] text-[#E5E7EB] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FF5A1F]/50"
+              >
+                <option value="">Select position…</option>
+                {reassignPositions.map(p => (
+                  <option key={p.value} value={p.value}>{p.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {reassignError && (
+              <p className="text-xs text-red-400">{reassignError}</p>
+            )}
+
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={performReassign}
+                disabled={reassignSaving || !reassignPosition || (reassignSection === 'operations' && !reassignTeamId)}
+                className="flex-1 bg-[#FF5A1F] hover:bg-[#FF6A33] disabled:opacity-40 text-white rounded-xl py-2.5 text-sm font-semibold transition-colors"
+              >
+                {reassignSaving ? 'Saving…' : 'Confirm Reassign'}
+              </button>
+              <button
+                onClick={() => setReassigning(null)}
+                className="px-4 bg-[#121821] border border-[#232B36] text-[#6B7280] hover:text-[#E5E7EB] rounded-xl py-2.5 text-sm transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
