@@ -69,7 +69,7 @@ export default function LoginPage() {
   }
 
   return (
-    <AuthLayout title="Incident Management Activity Log" subtitle="ICS 214 — Detroit Fire Department">
+    <AuthLayout title="Command OS" subtitle="Detroit Fire Department">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <FormField label="Email" error={errors.email?.message}>
           <input

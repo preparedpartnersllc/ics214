@@ -61,9 +61,11 @@ export function GlobalNav() {
         {/* Logo */}
         <Link
           href="/dashboard"
-          className="text-[11px] font-bold text-[#FF5A1F] uppercase tracking-widest flex-shrink-0 mr-1"
+          className="flex items-center gap-1.5 flex-shrink-0 mr-1 group"
         >
-          ICS 214
+          <span className="text-[11px] font-bold text-[#FF5A1F] uppercase tracking-widest group-hover:text-[#FF6A33] transition-colors">
+            Command OS
+          </span>
         </Link>
 
         {/* Nav links */}

@@ -23,7 +23,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <AuthLayout title="Create Account" subtitle="ICS 214 — Detroit Fire Department">
+    <AuthLayout title="Create Account" subtitle="Command OS — Detroit Fire Department">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <FormField label="Full Name" error={errors.full_name?.message}>
           <input

@@ -1581,10 +1581,16 @@ export default function BuildOrgPage() {
           {renderDualHatPanel()}
 
           <div className="text-center pt-2">
-            <Link href={`/events/${eventId}/op/${opId}/org`}
-              className="text-xs text-orange-500 hover:text-orange-400 underline-offset-2 hover:underline">
-              View org chart →
-            </Link>
+            <div className="flex items-center gap-3">
+              <Link href={`/events/${eventId}/op/${opId}/stage`}
+                className="text-xs text-[#22C55E] hover:text-[#34D399] underline-offset-2 hover:underline font-medium">
+                Staff from Staging →
+              </Link>
+              <Link href={`/events/${eventId}/op/${opId}/org`}
+                className="text-xs text-orange-500 hover:text-orange-400 underline-offset-2 hover:underline">
+                View org chart →
+              </Link>
+            </div>
           </div>
         </div>
       )}
