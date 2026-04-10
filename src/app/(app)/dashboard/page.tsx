@@ -94,7 +94,7 @@ export default async function DashboardPage() {
                 <Link
                   key={event.id}
                   href={`/events/${event.id}`}
-                  className="flex items-center gap-3 bg-[#161D26] border border-[#22C55E]/20 rounded-2xl px-4 py-3.5 hover:border-[#22C55E]/40 hover:bg-[#1a2235] transition-all group"
+                  className="flex items-center gap-3 bg-[#161D26] border border-[#22C55E]/20 rounded-2xl px-4 py-3.5 hover:border-[#22C55E]/40 hover:bg-[#1a2235] hover:-translate-y-px hover:shadow-lg hover:shadow-black/25 transition-all duration-150 group"
                 >
                   <span className="w-2 h-2 rounded-full bg-[#22C55E] flex-shrink-0 animate-pulse" />
                   <div className="min-w-0 flex-1">
@@ -121,7 +121,7 @@ export default async function DashboardPage() {
                 <Link
                   key={event.id}
                   href={`/events/${event.id}`}
-                  className="flex items-center gap-3 bg-[#161D26] border border-[#232B36] rounded-2xl px-4 py-3.5 hover:border-[#3a4555] hover:bg-[#1a2235] transition-all group"
+                  className="flex items-center gap-3 bg-[#161D26] border border-[#232B36] rounded-2xl px-4 py-3.5 hover:border-[#3a4555] hover:bg-[#1a2235] hover:-translate-y-px hover:shadow-lg hover:shadow-black/25 transition-all duration-150 group"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-0.5">
@@ -168,7 +168,7 @@ export default async function DashboardPage() {
         <div>
           <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide mb-3">Quick Access</p>
           <div className="space-y-2">
-            <Link href="/events" className="group flex items-center gap-3 bg-[#161D26] border border-[#232B36] rounded-2xl px-4 py-3.5 hover:border-[#3a4555] hover:bg-[#1a2235] transition-all">
+            <Link href="/events" className="group flex items-center gap-3 bg-[#161D26] border border-[#232B36] rounded-2xl px-4 py-3.5 hover:border-[#3a4555] hover:bg-[#1a2235] hover:-translate-y-px hover:shadow-lg hover:shadow-black/25 transition-all duration-150">
               <div className="w-8 h-8 rounded-xl bg-[#121821] flex items-center justify-center text-[#9CA3AF] group-hover:bg-[#232B36] transition-colors flex-shrink-0">
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
                   <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
@@ -183,7 +183,7 @@ export default async function DashboardPage() {
               </svg>
             </Link>
 
-            <Link href="/meetings" className="group flex items-center gap-3 bg-[#161D26] border border-[#232B36] rounded-2xl px-4 py-3.5 hover:border-[#3a4555] hover:bg-[#1a2235] transition-all">
+            <Link href="/meetings" className="group flex items-center gap-3 bg-[#161D26] border border-[#232B36] rounded-2xl px-4 py-3.5 hover:border-[#3a4555] hover:bg-[#1a2235] hover:-translate-y-px hover:shadow-lg hover:shadow-black/25 transition-all duration-150">
               <div className="w-8 h-8 rounded-xl bg-[#121821] flex items-center justify-center text-[#9CA3AF] group-hover:bg-[#232B36] transition-colors flex-shrink-0">
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
                   <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
@@ -199,7 +199,7 @@ export default async function DashboardPage() {
             </Link>
 
             {isAdmin && (
-              <Link href="/admin/people" className="group flex items-center gap-3 bg-[#161D26] border border-[#232B36] rounded-2xl px-4 py-3.5 hover:border-[#3a4555] hover:bg-[#1a2235] transition-all">
+              <Link href="/admin/people" className="group flex items-center gap-3 bg-[#161D26] border border-[#232B36] rounded-2xl px-4 py-3.5 hover:border-[#3a4555] hover:bg-[#1a2235] hover:-translate-y-px hover:shadow-lg hover:shadow-black/25 transition-all duration-150">
                 <div className="w-8 h-8 rounded-xl bg-[#121821] flex items-center justify-center text-[#9CA3AF] group-hover:bg-[#232B36] transition-colors flex-shrink-0">
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
                     <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>

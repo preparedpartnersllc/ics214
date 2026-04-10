@@ -79,8 +79,19 @@ export interface Assignment {
   division_id: string | null
   assigned_by: string
   assigned_at: string
+  dual_hatted: boolean
   profile?: Profile
   team?: Team
+}
+
+export interface DualHatRule {
+  id: string
+  event_id: string
+  role1: string
+  role2: string
+  label: string
+  enabled: boolean
+  created_at: string
 }
 
 export interface ActivityEntry {

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatICSDateTime } from '@/lib/utils'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 type MeetingStatus = 'upcoming' | 'starting_soon' | 'in_progress' | 'completed'
 
@@ -50,6 +51,7 @@ export default function MeetingsPage() {
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
   const [tick, setTick] = useState(0)
+  const router = useRouter()
 
   useEffect(() => {
     const t = setInterval(() => setTick(v => v + 1), 30_000)
@@ -143,7 +145,26 @@ export default function MeetingsPage() {
           <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide mb-3">Upcoming</p>
           {upcoming.length === 0 ? (
             <div className="border border-[#232B36] border-dashed rounded-2xl p-10 text-center">
-              <p className="text-[#6B7280] text-sm">No upcoming meetings.</p>
+              <svg className="w-9 h-9 text-[#2d3748] mx-auto mb-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+              </svg>
+              <p className="text-[#E5E7EB] text-sm font-semibold">No upcoming meetings</p>
+              <p className="text-[#6B7280] text-xs mt-1 leading-relaxed">
+                {isAdmin
+                  ? 'Schedule your first meeting to coordinate your team.'
+                  : 'You haven\'t been invited to any meetings yet.'}
+              </p>
+              {isAdmin && (
+                <button
+                  onClick={() => router.push('/events')}
+                  className="inline-flex items-center gap-1.5 mt-4 bg-[#FF5A1F] hover:bg-[#FF6A33] active:bg-[#E14A12] active:scale-[0.97] text-white px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-150"
+                >
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M12 5v14M5 12h14"/>
+                  </svg>
+                  Schedule Meeting
+                </button>
+              )}
             </div>
           ) : (
             <div className="space-y-2">
@@ -156,8 +177,8 @@ export default function MeetingsPage() {
                   <Link
                     key={m.id}
                     href={`/events/${m.event_id}/meetings`}
-                    className={`block bg-[#161D26] border rounded-2xl px-4 py-3.5 hover:bg-[#1a2235] transition-all group ${
-                      isLive ? 'border-[#22C55E]/30' : isSoon ? 'border-[#F59E0B]/30' : 'border-[#232B36] hover:border-[#3a4555]'
+                    className={`block bg-[#161D26] border rounded-2xl px-4 py-3.5 hover:bg-[#1a2235] hover:-translate-y-px hover:shadow-lg hover:shadow-black/25 transition-all duration-150 group ${
+                      isLive ? 'border-[#22C55E]/30 hover:border-[#22C55E]/50' : isSoon ? 'border-[#F59E0B]/30 hover:border-[#F59E0B]/50' : 'border-[#232B36] hover:border-[#3a4555]'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -204,7 +225,7 @@ export default function MeetingsPage() {
                 <Link
                   key={m.id}
                   href={`/events/${m.event_id}/meetings`}
-                  className="block bg-[#161D26] border border-[#232B36] rounded-2xl px-4 py-3 opacity-60 hover:opacity-80 hover:border-[#3a4555] transition-all group"
+                  className="block bg-[#161D26] border border-[#232B36] rounded-2xl px-4 py-3 opacity-60 hover:opacity-90 hover:border-[#3a4555] hover:-translate-y-px transition-all duration-150 group"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0 flex-1">

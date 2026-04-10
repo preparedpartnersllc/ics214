@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatICSTime, formatDate, formatICSDateTime, getInitials } from '@/lib/utils'
-import { getPositionLabel } from '@/lib/ics-positions'
+import { getPositionLabel, OPERATIONS_POSITIONS, PLANNING_POSITIONS, LOGISTICS_POSITIONS, FINANCE_POSITIONS } from '@/lib/ics-positions'
 import Link from 'next/link'
 import type { EventMeeting } from '@/types'
 
@@ -669,6 +669,170 @@ export default function EventDetailPage() {
           </div>
         ) : null}
 
+        {/* 3b · PERSONNEL SUMMARY ──────────────────────────── */}
+        {activeOp && activeOpAssignments.length > 0 && (() => {
+          // Short role tags for display — keyed by ics_position value
+          const ROLE_TAG: Record<string, { tag: string; color: string }> = {
+            incident_commander:          { tag: 'IC',        color: '#FF5A1F' },
+            deputy_incident_commander:   { tag: 'Dep IC',    color: '#FF5A1F' },
+            safety_officer:              { tag: 'Safety',    color: '#EF4444' },
+            public_information_officer:  { tag: 'PIO',       color: '#F59E0B' },
+            liaison_officer:             { tag: 'Liaison',   color: '#F59E0B' },
+            agency_representative:       { tag: 'Agency',    color: '#6B7280' },
+            operations_section_chief:    { tag: 'Ops Chief', color: '#22C55E' },
+            operations_section_deputy:   { tag: 'Ops Dep',   color: '#22C55E' },
+            planning_section_chief:      { tag: 'Pln Chief', color: '#3B82F6' },
+            logistics_section_chief:     { tag: 'Log Chief', color: '#8B5CF6' },
+            finance_admin_section_chief: { tag: 'Fin Chief', color: '#6B7280' },
+            branch_director:             { tag: 'Branch Dir',color: '#FB923C' },
+            division_supervisor:         { tag: 'Div Sup',   color: '#38BDF8' },
+            division_group_supervisor:   { tag: 'Div/Grp',   color: '#38BDF8' },
+            group_supervisor:            { tag: 'Grp Sup',   color: '#A3E635' },
+            team_leader:                 { tag: 'Team Lead', color: '#94A3B8' },
+            staging_area_manager:        { tag: 'Staging',   color: '#22C55E' },
+            air_ops_branch_director:     { tag: 'Air Ops',   color: '#22C55E' },
+          }
+
+          // Priority order — leaders first
+          const LEADER_PRIORITY = [
+            'incident_commander','deputy_incident_commander','safety_officer',
+            'public_information_officer','liaison_officer',
+            'operations_section_chief','planning_section_chief',
+            'logistics_section_chief','finance_admin_section_chief',
+            'branch_director','division_supervisor','division_group_supervisor',
+            'group_supervisor','team_leader',
+          ]
+          const rank = (pos: string) => {
+            const i = LEADER_PRIORITY.indexOf(pos)
+            return i === -1 ? 999 : i
+          }
+          const sorted = [...activeOpAssignments].sort((a, b) => rank(a.ics_position) - rank(b.ics_position))
+          const PREVIEW = 6
+          const preview = sorted.slice(0, PREVIEW)
+          const remaining = activeOpAssignments.length - PREVIEW
+
+          // Section counts — derived from ics_position
+          const cmdPos = new Set(['incident_commander','deputy_incident_commander','safety_officer',
+            'public_information_officer','liaison_officer','agency_representative'])
+          const opsPos = new Set(OPERATIONS_POSITIONS.map(p => p.value))
+          const planPos = new Set(PLANNING_POSITIONS.map(p => p.value))
+          const logPos = new Set(LOGISTICS_POSITIONS.map(p => p.value))
+          const finPos = new Set(FINANCE_POSITIONS.map(p => p.value))
+          const sectionParts = [
+            { label: 'CMD', count: activeOpAssignments.filter(a => cmdPos.has(a.ics_position)).length },
+            { label: 'OPS', count: activeOpAssignments.filter(a => opsPos.has(a.ics_position)).length },
+            { label: 'PLN', count: activeOpAssignments.filter(a => planPos.has(a.ics_position)).length },
+            { label: 'LOG', count: activeOpAssignments.filter(a => logPos.has(a.ics_position)).length },
+            { label: 'FIN', count: activeOpAssignments.filter(a => finPos.has(a.ics_position)).length },
+          ].filter(s => s.count > 0)
+
+          return (
+            <section className="mb-8">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide">Personnel</p>
+                <Link
+                  href={`/events/${id}/roster`}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-[#6B7280] hover:text-[#E5E7EB] transition-colors py-1 px-2 -mr-2 rounded-lg hover:bg-[#161D26]"
+                >
+                  View All
+                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                  </svg>
+                </Link>
+              </div>
+
+              <div className="bg-[#161D26] border border-[#232B36] rounded-2xl overflow-hidden">
+
+                {/* Count + readable section breakdown */}
+                <div className="px-4 py-3 border-b border-[#232B36]/60">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-xl font-bold text-[#E5E7EB] leading-none tabular-nums">
+                      {activeOpAssignments.length}
+                    </span>
+                    <span className="text-xs text-[#6B7280]">assigned · OP {activeOp.period_number}</span>
+                  </div>
+                  {sectionParts.length > 0 && (
+                    <p className="text-[11px] text-[#4B5563] font-mono mt-1 leading-relaxed">
+                      {sectionParts.map((s, i) => (
+                        <span key={s.label}>
+                          {i > 0 && <span className="mx-1 text-[#232B36]">·</span>}
+                          <span className="text-[#6B7280]">{s.label}</span>
+                          {' '}{s.count}
+                        </span>
+                      ))}
+                    </p>
+                  )}
+                </div>
+
+                {/* Leadership preview rows */}
+                {preview.map((a: any, i: number) => {
+                  const p = profileMap[a.user_id]
+                  const name = p?.full_name ?? 'Unknown'
+                  const roleTag = ROLE_TAG[a.ics_position]
+                  const isLast = i === preview.length - 1 && remaining <= 0
+                  return (
+                    <div key={a.id} className={`flex items-center gap-3 px-4 py-2.5 ${!isLast ? 'border-b border-[#232B36]/40' : ''}`}>
+                      {/* Avatar */}
+                      <div className="w-7 h-7 rounded-full bg-[#121821] border border-[#232B36] flex items-center justify-center text-xs font-mono text-[#9CA3AF] flex-shrink-0">
+                        {getInitials(name)}
+                      </div>
+
+                      {/* Name + role tag */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <p className="text-sm font-medium text-[#E5E7EB] truncate">{name}</p>
+                          {roleTag && (
+                            <span
+                              className="text-[10px] font-bold px-1.5 py-px rounded flex-shrink-0 font-mono"
+                              style={{
+                                color: roleTag.color,
+                                backgroundColor: roleTag.color + '18',
+                              }}
+                            >
+                              {roleTag.tag}
+                            </span>
+                          )}
+                          {a.dual_hatted && (
+                            <span className="text-[10px] font-bold text-[#F59E0B] bg-[#F59E0B]/10 px-1.5 py-px rounded flex-shrink-0 font-mono hidden sm:inline">
+                              DH
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-[#4B5563] truncate leading-tight mt-px">
+                          {getPositionLabel(a.ics_position)}
+                        </p>
+                      </div>
+
+                      {/* Status placeholder — reserved for future presence/activity indicator */}
+                      <div className="flex-shrink-0 flex flex-col items-end gap-1 min-w-[20px]">
+                        {a.user_id === currentUserId ? (
+                          <span className="text-[10px] font-semibold text-[#FF5A1F] bg-[#FF5A1F]/10 px-1.5 py-0.5 rounded-full">You</span>
+                        ) : (
+                          /* placeholder dot — will become presence indicator */
+                          <div className="w-1.5 h-1.5 rounded-full bg-[#232B36]" title="Status" />
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+
+                {/* View full roster */}
+                <Link
+                  href={`/events/${id}/roster`}
+                  className="flex items-center justify-center gap-1.5 px-4 py-3 text-sm text-[#6B7280] hover:text-[#E5E7EB] hover:bg-[#1a2235] transition-colors border-t border-[#232B36]/60"
+                >
+                  {remaining > 0
+                    ? `+${remaining} more · View Full Roster`
+                    : 'View Full Roster'}
+                  <svg className="w-3.5 h-3.5 ml-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                  </svg>
+                </Link>
+              </div>
+            </section>
+          )
+        })()}
+
         {/* 4 · PRIMARY CTA ──────────────────────────────────── */}
         {myAssignment && activeOp && (
           <div className="mb-8">
@@ -685,7 +849,31 @@ export default function EventDetailPage() {
           </div>
         )}
 
-        {/* 4b · MEETINGS ───────────────────────────────────── */}
+        {/* 4b · ICS 214 QUICK ACCESS (admin/supervisor, not assigned) ── */}
+        {canManage && !myAssignment && activeOp && (
+          <div className="mb-8">
+            <Link
+              href={`/events/${id}/op/${activeOp.id}/review`}
+              className="w-full flex items-center gap-3 bg-[#161D26] border border-[#232B36] hover:border-[#FF5A1F]/30 hover:bg-[#1a2235] rounded-2xl px-4 py-3.5 transition-all duration-150 group"
+            >
+              <div className="w-9 h-9 rounded-xl bg-[#121821] border border-[#232B36] flex items-center justify-center text-[#FF5A1F] group-hover:bg-[#FF5A1F]/10 transition-colors flex-shrink-0">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-[#E5E7EB]">ICS 214 Logs</p>
+                <p className="text-xs text-[#6B7280] mt-0.5">Review activity logs — OP {activeOp.period_number}</p>
+              </div>
+              <svg className="w-4 h-4 text-[#232B36] group-hover:text-[#6B7280] transition-colors flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 18l6-6-6-6"/>
+              </svg>
+            </Link>
+          </div>
+        )}
+
+        {/* 4c · MEETINGS ───────────────────────────────────── */}
         {(meetings.length > 0 || isAdmin) && (
           <div className="mb-8">
             <div className="flex items-center justify-between mb-3">
@@ -1113,14 +1301,20 @@ export default function EventDetailPage() {
             )}
             <div className="border-t border-[#232B36]/60 pt-8">
               <div className="flex items-center justify-between mb-4">
-                <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide">
-                  Alerts
+                <div className="flex items-center gap-2">
+                  <svg className="w-3.5 h-3.5 text-[#EF4444]/60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                  </svg>
+                  <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide">
+                    Command Alerts
+                  </p>
                   {alerts.length > 0 && (
-                    <span className="ml-2 text-[#6B7280] font-normal normal-case">
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#EF4444]/10 text-[#EF4444]">
                       {alerts.length} active
                     </span>
                   )}
-                </p>
+                </div>
                 <button
                   onClick={() => setShowAlertForm(v => !v)}
                   className="text-xs text-[#FF5A1F] hover:text-[#FF6A33] transition-colors"
@@ -1212,9 +1406,16 @@ export default function EventDetailPage() {
                             {alert.message && (
                               <p className="text-xs text-[#9CA3AF] mt-1 leading-relaxed">{alert.message}</p>
                             )}
-                            <p className="text-xs text-[#6B7280] mt-1 font-mono">
-                              {formatICSDateTime(alert.created_at)}
-                            </p>
+                            <div className="flex items-center gap-3 mt-1 flex-wrap">
+                              <p className="text-xs text-[#6B7280] font-mono">
+                                {formatICSDateTime(alert.created_at)}
+                              </p>
+                              {profileMap[alert.created_by]?.full_name && (
+                                <p className="text-xs text-[#6B7280]">
+                                  by {profileMap[alert.created_by].full_name}
+                                </p>
+                              )}
+                            </div>
                           </div>
                         </div>
                         <button

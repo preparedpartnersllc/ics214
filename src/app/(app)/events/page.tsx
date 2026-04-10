@@ -96,35 +96,39 @@ export default async function EventsPage() {
           {events.map((event: any) => {
             const eventOps  = (allOps ?? []).filter((op: any) => op.event_id === event.id)
             const activeOps = eventOps.filter((op: any) => op.status === 'active')
+            const isActive  = event.status === 'active'
 
             return (
               <Link
                 key={event.id}
                 href={`/events/${event.id}`}
-                className="block bg-[#161D26] border border-[#232B36] rounded-2xl px-4 py-4 hover:border-[#3a4555] hover:bg-[#1a2235] transition-all group"
+                className={`block bg-[#161D26] border rounded-2xl px-4 py-4 hover:bg-[#1a2235] hover:-translate-y-px hover:shadow-lg hover:shadow-black/25 transition-all duration-150 group ${
+                  isActive ? 'border-[#22C55E]/20 hover:border-[#22C55E]/40' : 'border-[#232B36] hover:border-[#3a4555]'
+                }`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full uppercase tracking-wide ring-1 ring-inset ${
-                        event.status === 'active'
-                          ? 'bg-[#22C55E]/10 text-[#22C55E] ring-[#22C55E]/20'
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ring-1 ring-inset ${
+                        isActive
+                          ? 'bg-[#22C55E]/10 text-[#22C55E] ring-[#22C55E]/25'
                           : event.status === 'closed'
                           ? 'bg-[#6B7280]/10 text-[#9CA3AF] ring-[#9CA3AF]/20'
                           : 'bg-[#6B7280]/10 text-[#6B7280] ring-[#6B7280]/20'
                       }`}>
+                        {isActive && <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E] animate-pulse" />}
                         {event.status}
                       </span>
                       {event.incident_number && (
-                        <span className="text-xs font-mono text-[#6B7280]">#{event.incident_number}</span>
+                        <span className="text-xs font-mono text-[#4B5563]">#{event.incident_number}</span>
                       )}
                     </div>
-                    <p className="text-sm font-semibold text-[#E5E7EB] leading-snug">{event.name}</p>
+                    <p className="text-[15px] font-semibold text-[#E5E7EB] leading-snug">{event.name}</p>
                     {event.location && (
                       <p className="text-xs text-[#6B7280] mt-0.5 truncate">{event.location}</p>
                     )}
                   </div>
-                  <svg className="w-4 h-4 text-[#232B36] group-hover:text-[#6B7280] transition-colors flex-shrink-0 mt-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg className="w-4 h-4 text-[#2d3748] group-hover:text-[#6B7280] transition-colors duration-150 flex-shrink-0 mt-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M9 18l6-6-6-6"/>
                   </svg>
                 </div>
