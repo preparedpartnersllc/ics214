@@ -58,31 +58,23 @@ export default async function EventsPage() {
 
   return (
     <div className="min-h-screen bg-[#0B0F14] flex flex-col">
+      <main className="flex-1 px-4 pt-6 pb-12 max-w-2xl mx-auto w-full">
 
-      {/* ── STICKY HEADER ──────────────────────────────────────── */}
-      <header className="sticky top-0 z-20 bg-[#0B0F14]/95 backdrop-blur-sm border-b border-[#232B36]/70">
-        <div className="px-4 py-2.5 max-w-2xl mx-auto flex items-center justify-between gap-4">
-          <Link href="/dashboard"
-            className="inline-flex items-center gap-1.5 text-xs text-[#6B7280] hover:text-[#E5E7EB] transition-colors">
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M19 12H5M12 5l-7 7 7 7"/>
-            </svg>
-            Dashboard
-          </Link>
-          <p className="text-sm font-semibold text-[#E5E7EB]">Events</p>
+        {/* Page title row */}
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-lg font-semibold text-[#E5E7EB]">Events</h1>
           {isAdmin && (
-            <Link href="/events/new"
-              className="inline-flex items-center gap-1 bg-[#FF5A1F] hover:bg-[#FF6A33] text-white px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors">
+            <Link
+              href="/events/new"
+              className="inline-flex items-center gap-1.5 bg-[#FF5A1F] hover:bg-[#FF6A33] active:bg-[#E14A12] text-white px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors"
+            >
               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M12 5v14M5 12h14"/>
               </svg>
-              New
+              New Event
             </Link>
           )}
         </div>
-      </header>
-
-      <main className="flex-1 px-4 pt-6 pb-12 max-w-2xl mx-auto w-full">
 
         {/* Empty state */}
         {events.length === 0 && (
@@ -113,14 +105,13 @@ export default async function EventsPage() {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    {/* Status + incident number */}
                     <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full uppercase tracking-wide ${
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full uppercase tracking-wide ring-1 ring-inset ${
                         event.status === 'active'
-                          ? 'bg-[#22C55E]/10 text-[#22C55E] ring-1 ring-inset ring-[#22C55E]/20'
+                          ? 'bg-[#22C55E]/10 text-[#22C55E] ring-[#22C55E]/20'
                           : event.status === 'closed'
-                          ? 'bg-[#6B7280]/10 text-[#9CA3AF] ring-1 ring-inset ring-[#9CA3AF]/20'
-                          : 'bg-[#6B7280]/10 text-[#6B7280] ring-1 ring-inset ring-[#6B7280]/20'
+                          ? 'bg-[#6B7280]/10 text-[#9CA3AF] ring-[#9CA3AF]/20'
+                          : 'bg-[#6B7280]/10 text-[#6B7280] ring-[#6B7280]/20'
                       }`}>
                         {event.status}
                       </span>

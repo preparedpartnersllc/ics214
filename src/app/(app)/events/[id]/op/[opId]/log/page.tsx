@@ -169,7 +169,7 @@ export default function LogPage() {
     <div className="min-h-screen bg-[#0B0F14] flex flex-col">
 
       {/* ── STICKY CONTEXT HEADER ─────────────────────────────── */}
-      <header className="sticky top-0 z-20 bg-[#0B0F14]/95 backdrop-blur-sm border-b border-[#232B36]/70">
+      <header className="sticky top-12 z-20 bg-[#0B0F14]/95 backdrop-blur-sm border-b border-[#232B36]/70">
         <div className="px-4 py-2.5 sm:py-3 max-w-2xl mx-auto flex items-center justify-between gap-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">

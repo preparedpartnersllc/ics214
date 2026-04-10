@@ -44,7 +44,7 @@ export default function PeoplePage() {
     setInviting(null)
   }
 
-  async function sendQuickInvite(e: React.FormEvent<HTMLFormElement>) {
+  async function sendQuickInvite(e: { preventDefault(): void }) {
     e.preventDefault()
     const email = quickInviteEmail.trim()
     if (!email) return
@@ -95,22 +95,15 @@ export default function PeoplePage() {
 
   return (
     <div className="min-h-screen bg-[#0B0F14] flex flex-col">
-
-      {/* ── HEADER ─────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-20 bg-[#0B0F14]/95 backdrop-blur-sm border-b border-[#232B36]/70">
-        <div className="px-4 py-2.5 max-w-2xl mx-auto flex items-center justify-between gap-4">
-          <Link href="/dashboard"
-            className="inline-flex items-center gap-1.5 text-xs text-[#6B7280] hover:text-[#E5E7EB] transition-colors">
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M19 12H5M12 5l-7 7 7 7"/>
-            </svg>
-            Dashboard
-          </Link>
-          <p className="text-sm font-semibold text-[#E5E7EB]">People</p>
-        </div>
-      </header>
-
       <main className="flex-1 px-4 pt-6 pb-12 max-w-2xl mx-auto w-full">
+
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-lg font-semibold text-[#E5E7EB]">People</h1>
+          <Link href="/admin/import"
+            className="text-xs px-3 py-1.5 rounded-xl border border-[#232B36] text-[#9CA3AF] hover:bg-[#161D26] hover:border-[#3a4555] transition-colors">
+            Import CSV
+          </Link>
+        </div>
 
         {/* Invite by email */}
         <div className="bg-[#161D26] border border-[#FF5A1F]/15 rounded-2xl p-4 mb-6">
@@ -133,41 +126,38 @@ export default function PeoplePage() {
             </button>
           </form>
           {quickInviteState === 'sent' && (
-            <p className="text-xs text-[#22C55E] mt-2">✓ Invite sent</p>
+            <p className="text-xs text-[#22C55E] mt-2 flex items-center gap-1">
+              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M20 6L9 17l-5-5"/>
+              </svg>
+              Invite sent
+            </p>
           )}
           {quickInviteState === 'error' && (
             <p className="text-xs text-[#EF4444] mt-2">{quickInviteError}</p>
           )}
         </div>
 
-        {/* Search + controls */}
-        <div className="flex items-center gap-2 mb-4">
-          <div className="relative flex-1">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#6B7280] pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
-            </svg>
-            <input
-              type="text"
-              className="input pl-8"
-              placeholder="Search name, email, agency…"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
-          </div>
-          <Link href="/admin/import"
-            className="text-xs px-3 py-2 rounded-xl border border-[#232B36] text-[#9CA3AF] hover:bg-[#161D26] hover:border-[#3a4555] transition-colors whitespace-nowrap">
-            Import CSV
-          </Link>
+        {/* Search */}
+        <div className="relative mb-4">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#6B7280] pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+          </svg>
+          <input
+            type="text"
+            className="input pl-8"
+            placeholder="Search name, email, agency…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
         </div>
 
-        {/* Profile count */}
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide">
-            {filtered.length === profiles.length
-              ? `${profiles.length} people`
-              : `${filtered.length} of ${profiles.length}`}
-          </p>
-        </div>
+        {/* Count */}
+        <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide mb-3">
+          {filtered.length === profiles.length
+            ? `${profiles.length} people`
+            : `${filtered.length} of ${profiles.length}`}
+        </p>
 
         {/* Profile list */}
         <div className="space-y-2">
@@ -176,9 +166,9 @@ export default function PeoplePage() {
             const placeholder   = isPlaceholder(p.email)
 
             return (
-              <div key={p.id} className="bg-[#161D26] border border-[#232B36] rounded-2xl p-4">
+              <div key={p.id} className="bg-[#161D26] border border-[#232B36] rounded-2xl p-4 hover:border-[#2a3545] transition-colors">
 
-                {/* Top row: avatar + name + role selector */}
+                {/* Top row */}
                 <div className="flex items-center gap-3">
                   <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-mono flex-shrink-0 ${
                     p.is_active ? 'bg-[#232B36] text-[#E5E7EB]' : 'bg-[#121821] text-[#6B7280]'
@@ -205,7 +195,6 @@ export default function PeoplePage() {
                     </p>
                   </div>
 
-                  {/* Role selector */}
                   <select
                     value={p.role}
                     onChange={e => updateRole(p.id, e.target.value)}

@@ -91,22 +91,20 @@ export default function ImportProfilesPage() {
 
   return (
     <div className="min-h-screen bg-[#0B0F14] flex flex-col">
+      <main className="flex-1 px-4 pt-6 pb-12 max-w-2xl mx-auto w-full space-y-5">
 
-      {/* ── HEADER ─────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-20 bg-[#0B0F14]/95 backdrop-blur-sm border-b border-[#232B36]/70">
-        <div className="px-4 py-2.5 max-w-2xl mx-auto flex items-center justify-between gap-4">
-          <Link href="/admin/people"
-            className="inline-flex items-center gap-1.5 text-xs text-[#6B7280] hover:text-[#E5E7EB] transition-colors">
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <div className="flex items-center gap-2 mb-2">
+          <Link href="/admin/people" className="text-xs text-[#6B7280] hover:text-[#E5E7EB] transition-colors flex items-center gap-1">
+            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M19 12H5M12 5l-7 7 7 7"/>
             </svg>
             People
           </Link>
-          <p className="text-sm font-semibold text-[#E5E7EB]">Import Profiles</p>
+          <span className="text-[#232B36] text-xs">/</span>
+          <span className="text-xs text-[#E5E7EB] font-medium">Import Profiles</span>
         </div>
-      </header>
 
-      <main className="flex-1 px-4 pt-6 pb-12 max-w-2xl mx-auto w-full space-y-5">
+        <h1 className="text-lg font-semibold text-[#E5E7EB] !mt-0">Import Profiles</h1>
 
         {/* CSV format reference */}
         <div className="bg-[#161D26] border border-[#232B36] rounded-2xl p-4">
@@ -127,7 +125,7 @@ export default function ImportProfilesPage() {
           </p>
         </div>
 
-        {/* ── UPLOAD STEP ─────────────────────────────────────── */}
+        {/* Upload step */}
         {step === 'upload' && (
           <div className="bg-[#161D26] border border-[#232B36] border-dashed rounded-2xl p-10 flex flex-col items-center gap-4">
             <div className="w-10 h-10 rounded-full bg-[#121821] border border-[#232B36] flex items-center justify-center">
@@ -146,7 +144,7 @@ export default function ImportProfilesPage() {
           </div>
         )}
 
-        {/* ── PREVIEW STEP ────────────────────────────────────── */}
+        {/* Preview step */}
         {step === 'preview' && rows.length > 0 && (
           <div className="space-y-4">
             <div className="bg-[#161D26] border border-[#232B36] rounded-2xl overflow-hidden">
@@ -185,7 +183,7 @@ export default function ImportProfilesPage() {
           </div>
         )}
 
-        {/* ── DONE STEP ───────────────────────────────────────── */}
+        {/* Done step */}
         {step === 'done' && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">

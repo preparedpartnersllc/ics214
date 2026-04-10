@@ -49,23 +49,21 @@ export default function NewEventPage() {
 
   return (
     <div className="min-h-screen bg-[#0B0F14] flex flex-col">
+      <main className="flex-1 px-4 pt-6 pb-12 max-w-2xl mx-auto w-full">
 
-      {/* ── HEADER ─────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-20 bg-[#0B0F14]/95 backdrop-blur-sm border-b border-[#232B36]/70">
-        <div className="px-4 py-2.5 max-w-2xl mx-auto flex items-center justify-between gap-4">
-          <Link href="/events"
-            className="inline-flex items-center gap-1.5 text-xs text-[#6B7280] hover:text-[#E5E7EB] transition-colors">
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-2 mb-6">
+          <Link href="/events" className="text-xs text-[#6B7280] hover:text-[#E5E7EB] transition-colors flex items-center gap-1">
+            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M19 12H5M12 5l-7 7 7 7"/>
             </svg>
             Events
           </Link>
-          <p className="text-sm font-semibold text-[#E5E7EB]">New Event</p>
+          <span className="text-[#232B36] text-xs">/</span>
+          <span className="text-xs text-[#E5E7EB] font-medium">New Event</span>
         </div>
-      </header>
 
-      <main className="flex-1 px-4 pt-6 pb-12 max-w-2xl mx-auto w-full">
-
+        <h1 className="text-lg font-semibold text-[#E5E7EB] mb-1">Create Event</h1>
         <p className="text-xs text-[#6B7280] mb-6">
           Operational periods are added after the event is created.
         </p>

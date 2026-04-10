@@ -7,7 +7,6 @@ import { formatICSTime, formatDate, formatICSDateTime, getInitials } from '@/lib
 import { getPositionLabel } from '@/lib/ics-positions'
 import Link from 'next/link'
 import type { EventMeeting } from '@/types'
-import { NotificationBell } from '@/components/NotificationBell'
 
 function buildCountdown(startIso: string, endIso: string): { label: string; color: string } {
   const now   = Date.now()
@@ -353,7 +352,7 @@ export default function EventDetailPage() {
     <div className="min-h-screen bg-[#0B0F14] flex flex-col">
 
       {/* ── STICKY HEADER ─────────────────────────────────────── */}
-      <header className="sticky top-0 z-20 bg-[#0B0F14]/95 backdrop-blur-sm border-b border-[#232B36]/70">
+      <header className="sticky top-12 z-20 bg-[#0B0F14]/95 backdrop-blur-sm border-b border-[#232B36]/70">
         <div className="px-4 py-2.5 sm:py-3 max-w-2xl mx-auto flex items-center gap-4">
           <Link
             href="/events"
@@ -386,7 +385,6 @@ export default function EventDetailPage() {
               )}
             </div>
           </div>
-          {currentUserId && <NotificationBell userId={currentUserId} />}
         </div>
       </header>
 
