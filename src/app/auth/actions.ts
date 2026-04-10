@@ -25,6 +25,7 @@ export async function register(formData: {
     password: formData.password,
     options: {
       data: { full_name: formData.full_name },
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
     },
   })
 
