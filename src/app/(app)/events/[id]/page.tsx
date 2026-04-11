@@ -840,6 +840,8 @@ export default function EventDetailPage() {
                   const name = p?.full_name ?? 'Unknown'
                   const roleTag = ROLE_TAG[a.ics_position]
                   const isLast = i === preview.length - 1 && remaining <= 0
+                  const phoneNormalized = p?.phone_normalized ?? null
+                  const phoneDisplay    = p?.phone ?? phoneNormalized ?? null
                   return (
                     <div key={a.id} className={`flex items-center gap-3 px-4 py-2.5 ${!isLast ? 'border-b border-[#232B36]/40' : ''}`}>
                       {/* Avatar */}
@@ -847,7 +849,7 @@ export default function EventDetailPage() {
                         {getInitials(name)}
                       </div>
 
-                      {/* Name + role tag */}
+                      {/* Name + role tag + phone */}
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 min-w-0">
                           <p className="text-sm font-medium text-[#E5E7EB] truncate">{name}</p>
@@ -871,6 +873,11 @@ export default function EventDetailPage() {
                         <p className="text-xs text-[#4B5563] truncate leading-tight mt-px">
                           {getPositionLabel(a.ics_position)}
                         </p>
+                        {phoneDisplay && (
+                          <p className="text-[11px] text-[#374151] leading-tight mt-px font-mono tracking-tight">
+                            {phoneDisplay}
+                          </p>
+                        )}
                       </div>
 
                       {/* Activity status — data-status attr exposes value for future sort */}
@@ -897,6 +904,26 @@ export default function EventDetailPage() {
                           </div>
                         )
                       })()}
+
+                      {/* Call button — far right, only when phone_normalized exists */}
+                      {phoneNormalized ? (
+                        <a
+                          href={`tel:${phoneNormalized}`}
+                          onClick={e => {
+                            e.stopPropagation()
+                            console.log('Calling:', phoneNormalized, name)
+                            window.location.href = `tel:${phoneNormalized}`
+                          }}
+                          className="flex-shrink-0 text-[#374151] hover:text-[#22C55E] transition-colors p-1 rounded"
+                          title={`Call ${name}`}
+                        >
+                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.4a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.62 2.79h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 10.4a16 16 0 0 0 6 6l.96-1.96a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7a2 2 0 0 1 1.72 2.03z"/>
+                          </svg>
+                        </a>
+                      ) : (
+                        <div className="w-[22px] flex-shrink-0" />
+                      )}
                     </div>
                   )
                 })}

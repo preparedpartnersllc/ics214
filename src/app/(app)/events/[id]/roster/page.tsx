@@ -477,7 +477,10 @@ export default function RosterPage() {
   function PersonRow({ a, showUnit = false }: { a: any; showUnit?: boolean }) {
     const p = profileMap[a.user_id]
     const name = p?.full_name ?? 'Unknown'
-    const phone = p?.phone ?? null
+    // phone_normalized is E.164 (e.g. +13135550100) — use for tel: links
+    // phone is the display-formatted string shown in UI
+    const phoneNormalized = p?.phone_normalized ?? null
+    const phoneDisplay    = p?.phone ?? phoneNormalized ?? null
     const unit = showUnit ? getUnitLabel(a) : ''
     const roleTag = ROLE_TAG[a.ics_position]
     const unitContext = unit && unit !== 'Command Staff' && unit !== 'Planning Section'
@@ -511,9 +514,9 @@ export default function RosterPage() {
             {getPositionLabel(a.ics_position)}
             {unitContext ? <span className="text-[#374151]"> · {unitContext}</span> : null}
           </p>
-          {phone && (
+          {phoneDisplay && (
             <p className="text-[11px] text-[#374151] leading-tight mt-px font-mono tracking-tight">
-              {phone}
+              {phoneDisplay}
             </p>
           )}
         </div>
@@ -549,11 +552,15 @@ export default function RosterPage() {
           )
         })()}
 
-        {/* Call button — far right, only when phone exists */}
-        {phone ? (
+        {/* Call button — far right, only when phone_normalized exists */}
+        {phoneNormalized ? (
           <a
-            href={`tel:${phone}`}
-            onClick={e => e.stopPropagation()}
+            href={`tel:${phoneNormalized}`}
+            onClick={e => {
+              e.stopPropagation()
+              console.log('Calling:', phoneNormalized, name)
+              window.location.href = `tel:${phoneNormalized}`
+            }}
             className="flex-shrink-0 text-[#374151] hover:text-[#22C55E] transition-colors p-1 rounded"
             title={`Call ${name}`}
           >
@@ -562,7 +569,7 @@ export default function RosterPage() {
             </svg>
           </a>
         ) : (
-          <div className="w-5.5 flex-shrink-0" />
+          <div className="w-[22px] flex-shrink-0" />
         )}
       </div>
     )
