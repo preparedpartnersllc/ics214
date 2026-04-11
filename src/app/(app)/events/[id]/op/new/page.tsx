@@ -52,7 +52,7 @@ export default function NewOperationalPeriodPage() {
       .single()
 
     if (err) { setError(err.message); return }
-    router.push(`/events/${eventId}/op/${op.id}/build`)
+    router.push(`/events/${eventId}/op/${op.id}/stage`)
   }
 
   return (
@@ -63,7 +63,7 @@ export default function NewOperationalPeriodPage() {
         <p className="text-xs text-zinc-500 font-mono uppercase tracking-wider mb-1">Admin</p>
         <h1 className="text-xl font-semibold text-zinc-100">New Operational Period</h1>
         <p className="text-sm text-zinc-500 mt-1">
-          After creating the period you will build the org structure.
+          After creating the period you will be taken to the Staff screen to build the org structure.
         </p>
       </div>
 
@@ -94,7 +94,7 @@ export default function NewOperationalPeriodPage() {
             </button>
           </Link>
           <Button type="submit" loading={isSubmitting}>
-            Create Period → Build Org
+            Create Period → Staff
           </Button>
         </div>
       </form>
