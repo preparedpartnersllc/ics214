@@ -12,8 +12,10 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 // If `password` is omitted: only marks must_reset_password = true (force reset on
 //   next login without changing the current password).
 //
-// Both operations also update auth user_metadata so middleware can gate without
-// an extra DB call.
+// Handles both cases:
+//   - Auth user already exists → updateUserById
+//   - Profile exists but no auth user → create auth user via GoTrue REST API
+//     using the same UUID so the FK relationship is preserved
 export async function POST(request: Request) {
   // Verify caller is an authenticated admin
   const supabase = await createClient()
@@ -30,19 +32,96 @@ export async function POST(request: Request) {
   const { userId, password } = body as { userId?: string; password?: string }
   if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
 
+  if (password !== undefined && password.length < 8) {
+    return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
+  }
+
   // Use service role for privileged auth operations
   const admin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // Optionally update the password
+  // Fetch the target profile so we have email for auth-user creation
+  const { data: targetProfile, error: profileFetchErr } = await admin
+    .from('profiles')
+    .select('email, full_name')
+    .eq('id', userId)
+    .single()
+
+  if (profileFetchErr || !targetProfile) {
+    return NextResponse.json({ error: 'Person not found' }, { status: 404 })
+  }
+
+  if (!targetProfile.email) {
+    return NextResponse.json(
+      { error: 'This person has no email address on record. Add an email before setting a password.' },
+      { status: 400 }
+    )
+  }
+
+  // Try to update the existing auth user first
+  let authUserExists = true
+
   if (password) {
-    if (password.length < 8) {
-      return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
-    }
     const { error: pwErr } = await admin.auth.admin.updateUserById(userId, { password })
-    if (pwErr) return NextResponse.json({ error: pwErr.message }, { status: 400 })
+    if (pwErr) {
+      if (pwErr.message.toLowerCase().includes('not found') || pwErr.status === 404) {
+        authUserExists = false
+      } else {
+        return NextResponse.json({ error: pwErr.message }, { status: 400 })
+      }
+    }
+  } else {
+    // No password change — just probe whether the auth user exists
+    const { error: probeErr } = await admin.auth.admin.getUserById(userId)
+    if (probeErr) {
+      if (probeErr.message.toLowerCase().includes('not found') || probeErr.status === 404) {
+        authUserExists = false
+      } else {
+        return NextResponse.json({ error: probeErr.message }, { status: 400 })
+      }
+    }
+  }
+
+  // Auth user doesn't exist yet — create one using the same UUID
+  if (!authUserExists) {
+    if (!password) {
+      return NextResponse.json(
+        { error: 'A password is required to activate this account for the first time.' },
+        { status: 400 }
+      )
+    }
+
+    // GoTrue admin REST endpoint allows specifying the exact ID
+    const createRes = await fetch(
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/admin/users`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': process.env.SUPABASE_SERVICE_ROLE_KEY!,
+          'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY!}`,
+        },
+        body: JSON.stringify({
+          id: userId,
+          email: targetProfile.email,
+          password,
+          email_confirm: true,
+          user_metadata: {
+            full_name: targetProfile.full_name ?? '',
+          },
+        }),
+      }
+    )
+
+    if (!createRes.ok) {
+      const errBody = await createRes.json().catch(() => ({}))
+      const msg = (errBody as { msg?: string; message?: string }).msg
+        ?? (errBody as { msg?: string; message?: string }).message
+        ?? 'Failed to create auth account'
+      return NextResponse.json({ error: msg }, { status: 400 })
+    }
   }
 
   // Set must_reset_password in auth metadata (read by middleware from JWT)
