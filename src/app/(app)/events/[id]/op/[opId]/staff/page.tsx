@@ -81,13 +81,19 @@ export default function StaffPage() {
   // Ghost element held in the DOM during a drag so setDragImage has a valid target
   const dragGhostRef = useRef<HTMLDivElement | null>(null)
 
-  // Click-to-assign modal
+  // Click-to-assign modal (used for both staging→assign and mobile move)
   const [assigningProfile, setAssigningProfile] = useState<any | null>(null)
+  const [movingAssignmentId, setMovingAssignmentId] = useState<string | null>(null)
   const [caSection, setCaSection]               = useState('command')
   const [caTeamId, setCaTeamId]                 = useState('')
   const [caPosition, setCaPosition]             = useState('')
   const [caError, setCaError]                   = useState<string | null>(null)
   const [caSaving, setCaSaving]                 = useState(false)
+
+  // Mobile action sheet — tap an assigned card to move or unassign
+  const [mobileActionSheet, setMobileActionSheet] = useState<{
+    assignment: any; profile: any
+  } | null>(null)
 
   // Inline structure creation
   const [showAddGroup, setShowAddGroup]           = useState(false)
@@ -442,6 +448,7 @@ export default function StaffPage() {
   // ── Click-to-assign ───────────────────────────────────────────────
   function openAssign(p: any) {
     setAssigningProfile(p)
+    setMovingAssignmentId(null)
     setCaSection('command'); setCaTeamId(''); setCaPosition(''); setCaError(null)
     setMobileStagingOpen(false)
   }
@@ -462,9 +469,12 @@ export default function StaffPage() {
       if (!id) { setCaError('Failed to resolve section team'); setCaSaving(false); return }
       teamId = id
     }
-    const ok = await createAssignment(assigningProfile.id, teamId, caPosition)
+    // Move mode (mobile reassign): call reassignTo instead of createAssignment
+    const ok = movingAssignmentId
+      ? await reassignTo(movingAssignmentId, teamId, caPosition)
+      : await createAssignment(assigningProfile.id, teamId, caPosition)
     setCaSaving(false)
-    if (ok) setAssigningProfile(null)
+    if (ok) { setAssigningProfile(null); setMovingAssignmentId(null) }
     else setCaError('Assignment failed — see notification')
   }
 
@@ -550,9 +560,16 @@ export default function StaffPage() {
         {assignment.dual_hatted && (
           <span className="text-[9px] font-bold text-[#F59E0B] bg-[#F59E0B]/10 px-1 py-px rounded font-mono flex-shrink-0">DH</span>
         )}
+        {/* Mobile: tap to open action sheet */}
+        <button
+          onClick={e => { e.stopPropagation(); setMobileActionSheet({ assignment, profile: p }) }}
+          className="md:hidden text-[#6B7280] w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#232B36] flex-shrink-0 touch-manipulation text-base leading-none"
+          title="Actions"
+        >⋮</button>
+        {/* Desktop: × to remove directly */}
         <button
           onClick={e => { e.stopPropagation(); removeAssignment(assignment.id) }}
-          className="text-[#374151] hover:text-red-400 transition-colors text-sm w-5 h-5 flex items-center justify-center rounded hover:bg-red-500/10 flex-shrink-0"
+          className="hidden md:flex text-[#374151] hover:text-red-400 transition-colors text-sm w-5 h-5 items-center justify-center rounded hover:bg-red-500/10 flex-shrink-0"
           title="Return to staging"
         >×</button>
       </div>
@@ -843,9 +860,14 @@ export default function StaffPage() {
               <p className="text-xs font-medium text-[#E5E7EB] truncate">{p.full_name}</p>
               <p className="text-[10px] text-[#4B5563] truncate leading-none mt-px">{p.default_agency ?? p.role ?? '—'}</p>
             </div>
-            <button onClick={() => openAssign(p)}
-              className="flex-shrink-0 text-[10px] text-[#374151] hover:text-[#FF5A1F] transition-colors font-mono px-1"
-              title="Assign">→</button>
+            <button
+              onClick={() => openAssign(p)}
+              className="flex-shrink-0 text-[10px] text-[#374151] hover:text-[#FF5A1F] transition-colors font-mono touch-manipulation rounded px-2 py-1.5 hover:bg-[#FF5A1F]/10"
+              title="Assign"
+            >
+              <span className="md:hidden text-xs font-medium">Assign</span>
+              <span className="hidden md:inline">→</span>
+            </button>
           </div>
         ))}
       </div>
@@ -1172,16 +1194,18 @@ export default function StaffPage() {
         </main>
       </div>
 
-      {/* Click-to-assign modal */}
+      {/* Click-to-assign / Move modal */}
       {assigningProfile && (
         <div
           className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
-          onClick={() => setAssigningProfile(null)}
+          onClick={() => { setAssigningProfile(null); setMovingAssignmentId(null) }}
         >
           <div className="bg-[#161D26] border border-[#232B36] rounded-2xl w-full max-w-sm p-5 space-y-4"
             onClick={e => e.stopPropagation()}>
             <div>
-              <p className="text-xs text-[#6B7280] font-mono uppercase tracking-wider">Assign from Staging</p>
+              <p className="text-xs text-[#6B7280] font-mono uppercase tracking-wider">
+                {movingAssignmentId ? 'Move to New Slot' : 'Assign from Staging'}
+              </p>
               {assigningProfile.full_name && (
                 <p className="text-base font-semibold text-[#E5E7EB] mt-0.5">{assigningProfile.full_name}</p>
               )}
@@ -1252,13 +1276,77 @@ export default function StaffPage() {
                 disabled={caSaving || !caPosition || (caSection === 'operations' && !caTeamId)}
                 className="flex-1 bg-[#FF5A1F] hover:bg-[#FF6A33] disabled:opacity-40 text-white rounded-xl py-2.5 text-sm font-semibold transition-colors"
               >
-                {caSaving ? 'Assigning…' : 'Assign'}
+                {caSaving ? (movingAssignmentId ? 'Moving…' : 'Assigning…') : (movingAssignmentId ? 'Move' : 'Assign')}
               </button>
-              <button onClick={() => setAssigningProfile(null)}
+              <button onClick={() => { setAssigningProfile(null); setMovingAssignmentId(null) }}
                 className="px-4 bg-[#121821] border border-[#232B36] text-[#6B7280] hover:text-[#E5E7EB] rounded-xl py-2.5 text-sm transition-colors">
                 Cancel
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile action sheet — tap ⋮ on an assigned card */}
+      {mobileActionSheet && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 flex items-end"
+          onClick={() => setMobileActionSheet(null)}
+        >
+          <div
+            className="w-full bg-[#161D26] border-t border-[#232B36] rounded-t-2xl px-4 pt-4 pb-8 space-y-2"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Person header */}
+            <div className="flex items-center gap-3 pb-3 border-b border-[#232B36]">
+              <div className="w-9 h-9 rounded-full bg-[#1a2235] border border-[#232B36] flex items-center justify-center text-xs font-mono text-[#9CA3AF] flex-shrink-0">
+                {getInitials(mobileActionSheet.profile?.full_name ?? '?')}
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-[#E5E7EB] truncate">
+                  {mobileActionSheet.profile?.full_name ?? 'Unknown'}
+                </p>
+                <p className="text-xs text-[#6B7280] truncate">
+                  {getPositionLabel(mobileActionSheet.assignment.ics_position)}
+                </p>
+              </div>
+            </div>
+
+            {/* Move to new slot */}
+            <button
+              onClick={() => {
+                const { assignment, profile } = mobileActionSheet
+                setMobileActionSheet(null)
+                setMovingAssignmentId(assignment.id)
+                setAssigningProfile(profile)
+                setCaSection('command'); setCaTeamId(''); setCaPosition(''); setCaError(null)
+              }}
+              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-[#121821] border border-[#232B36] text-sm text-[#E5E7EB] hover:border-[#FF5A1F]/50 active:bg-[#FF5A1F]/5 transition-colors touch-manipulation"
+            >
+              <span className="text-[#FF5A1F] text-base leading-none">⇄</span>
+              <span>Move to new slot</span>
+            </button>
+
+            {/* Return to Staging */}
+            <button
+              onClick={async () => {
+                const { assignment } = mobileActionSheet
+                setMobileActionSheet(null)
+                await removeAssignment(assignment.id)
+              }}
+              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-[#121821] border border-[#232B36] text-sm text-[#6B7280] hover:text-[#E5E7EB] hover:border-[#374151] active:bg-[#232B36] transition-colors touch-manipulation"
+            >
+              <span className="text-base leading-none">↩</span>
+              <span>Return to Staging</span>
+            </button>
+
+            {/* Cancel */}
+            <button
+              onClick={() => setMobileActionSheet(null)}
+              className="w-full px-4 py-3.5 rounded-xl text-sm text-[#374151] hover:text-[#6B7280] transition-colors touch-manipulation"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
