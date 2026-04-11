@@ -10,13 +10,16 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 // Safe to call multiple times — idempotent.
 //
 // Flow:
-//   1. Fetch profile row to get email (validates person exists)
-//   2. Explicitly check whether an auth user exists via getUserById
-//   3a. Auth user EXISTS → update password (if provided) — no insert, no duplicate
-//   3b. Auth user MISSING → create via GoTrue REST with the same UUID
-//       (handle_new_user trigger uses ON CONFLICT DO NOTHING so the existing
-//        profile row is preserved)
-//   4. Set must_reset_password in auth metadata + profiles table
+//   1. Fetch profile row to get email (validates person exists in app)
+//   2. Explicitly probe auth.users via getUserById (no message-text inference)
+//   3a. Auth user EXISTS:
+//       - Single updateUserById call: sets password (if provided) + must_reset_password
+//         metadata together — avoids two-call sequencing failures
+//   3b. Auth user MISSING:
+//       - GoTrue REST create with same UUID, password, AND must_reset_password
+//         baked into user_metadata at creation time — no follow-up update needed
+//   4. Update profiles.must_reset_password = true  (authoritative DB flag,
+//      checked by login action as fallback when JWT is stale)
 export async function POST(request: Request) {
   // ── Verify caller is an authenticated admin ──────────────────────────────
   const supabase = await createClient()
@@ -41,13 +44,13 @@ export async function POST(request: Request) {
     )
   }
 
-  // ── Service-role client for privileged auth operations ───────────────────
+  // ── Service-role client ──────────────────────────────────────────────────
   const admin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // ── Step 1: fetch profile (need email; also validates person exists) ──────
+  // ── Step 1: fetch profile (validates person exists; need email) ──────────
   const { data: targetProfile, error: profileFetchErr } = await admin
     .from('profiles')
     .select('email, full_name')
@@ -69,33 +72,28 @@ export async function POST(request: Request) {
     )
   }
 
-  // ── Step 2: explicitly check whether an auth user exists ─────────────────
-  // Do NOT infer existence from update-error messages — probe directly.
-  const { data: existingAuthUser, error: lookupErr } =
-    await admin.auth.admin.getUserById(userId)
+  // ── Step 2: explicitly probe auth user existence ─────────────────────────
+  // getUserById returns { data: { user: User | null }, error } with no error
+  // when the user simply doesn't exist — data.user is just null.
+  const { data: authLookup } = await admin.auth.admin.getUserById(userId)
+  const authUserExists = authLookup?.user != null
 
-  // A real lookup failure (network, permissions) should surface as an error.
-  // "User not found" returns data: null + error, but we distinguish by checking
-  // whether data is present.
-  const authUserExists = !lookupErr && existingAuthUser?.user != null
-
-  if (lookupErr && existingAuthUser?.user == null) {
-    // Could be a genuine not-found or a lookup error; either way continue —
-    // we'll attempt creation below and catch any real infrastructure errors there.
-    console.error('[set-temp-password] getUserById error:', lookupErr.message)
-  }
-
-  // ── Step 3a: auth user exists — update in place ───────────────────────────
+  // ── Step 3a: auth user exists — single combined update ───────────────────
+  // Combine password + user_metadata into ONE updateUserById call so there is
+  // no second round-trip that could fail after the first succeeds.
   if (authUserExists) {
-    if (password) {
-      const { error: pwErr } = await admin.auth.admin.updateUserById(userId, { password })
-      if (pwErr) {
-        console.error('[set-temp-password] updateUserById error:', pwErr.message)
-        return NextResponse.json(
-          { error: 'Failed to update password. Please try again.' },
-          { status: 400 }
-        )
-      }
+    const patch: Record<string, unknown> = {
+      user_metadata: { must_reset_password: true },
+    }
+    if (password) patch.password = password
+
+    const { error: updateErr } = await admin.auth.admin.updateUserById(userId, patch)
+    if (updateErr) {
+      console.error('[set-temp-password] updateUserById failed:', updateErr.message)
+      return NextResponse.json(
+        { error: 'Failed to update the account. Please try again.' },
+        { status: 400 }
+      )
     }
   } else {
     // ── Step 3b: auth user missing — create with same UUID ──────────────────
@@ -109,10 +107,12 @@ export async function POST(request: Request) {
       )
     }
 
-    // GoTrue admin endpoint accepts an explicit `id` field so the auth row gets
-    // the same UUID as the existing profile row. The handle_new_user trigger
-    // (updated to ON CONFLICT DO NOTHING) will silently skip re-inserting the
-    // profile since it already exists.
+    // GoTrue accepts an explicit `id` → auth row gets the same UUID as the
+    // profile row, preserving all FK relationships.
+    // must_reset_password is included in user_metadata at creation time so
+    // there is no follow-up update call that could race.
+    // The handle_new_user trigger uses ON CONFLICT (id) DO NOTHING so the
+    // existing profile row is untouched.
     const createRes = await fetch(
       `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/admin/users`,
       {
@@ -127,7 +127,10 @@ export async function POST(request: Request) {
           email: targetProfile.email,
           password,
           email_confirm: true,
-          user_metadata: { full_name: targetProfile.full_name ?? '' },
+          user_metadata: {
+            full_name: targetProfile.full_name ?? '',
+            must_reset_password: true,
+          },
         }),
       }
     )
@@ -141,41 +144,48 @@ export async function POST(request: Request) {
 
       console.error('[set-temp-password] GoTrue create error:', raw)
 
-      // Duplicate key means the auth user was created between our probe and
-      // now (race). Treat as success — the account exists.
-      if (raw.toLowerCase().includes('duplicate key') || raw.toLowerCase().includes('already exists')) {
-        // Fall through — set the flag below
-      } else {
+      // Duplicate-key means the auth user was created between our probe and
+      // now (race condition). The account exists — continue to flag update.
+      if (
+        !raw.toLowerCase().includes('duplicate key') &&
+        !raw.toLowerCase().includes('already exists')
+      ) {
         return NextResponse.json(
           { error: 'Failed to create auth account. Please try again.' },
+          { status: 400 }
+        )
+      }
+
+      // Race: auth user now exists — set the metadata flag via update
+      const { error: raceUpdateErr } = await admin.auth.admin.updateUserById(userId, {
+        user_metadata: { must_reset_password: true },
+      })
+      if (raceUpdateErr) {
+        console.error('[set-temp-password] race updateUserById failed:', raceUpdateErr.message)
+        return NextResponse.json(
+          { error: 'Failed to update the account. Please try again.' },
           { status: 400 }
         )
       }
     }
   }
 
-  // ── Step 4: set must_reset_password flag ──────────────────────────────────
-  // Auth metadata (read by middleware from JWT — no extra DB call on each request)
-  const { error: metaErr } = await admin.auth.admin.updateUserById(userId, {
-    user_metadata: { must_reset_password: true },
-  })
-  if (metaErr) {
-    console.error('[set-temp-password] updateUserById meta error:', metaErr.message)
-    return NextResponse.json(
-      { error: 'Password was set but failed to mark account for reset. Contact support.' },
-      { status: 500 }
-    )
-  }
-
-  // Profiles table (used by login action as authoritative fallback)
+  // ── Step 4: set flag in profiles table ───────────────────────────────────
+  // This is the authoritative flag checked by the login action.
+  // The auth metadata above is checked by middleware (faster, no DB hit).
   const { error: profileErr } = await admin
     .from('profiles')
     .update({ must_reset_password: true })
     .eq('id', userId)
+
   if (profileErr) {
-    console.error('[set-temp-password] profiles update error:', profileErr.message)
+    console.error('[set-temp-password] profiles update failed:', profileErr.message)
     return NextResponse.json(
-      { error: 'Password was set but profile update failed. Contact support.' },
+      {
+        error:
+          'Temporary password was set but the reset flag could not be saved. ' +
+          'Please contact support.',
+      },
       { status: 500 }
     )
   }
