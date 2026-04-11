@@ -79,6 +79,12 @@ export default function LogPage() {
         user_id: user.id,
         entry_time: new Date(data.entry_time).toISOString(),
         narrative: data.narrative,
+        is_staging: false,
+        snapped_section:     assignment.section      ?? null,
+        snapped_position:    assignment.ics_position ?? null,
+        snapped_team_id:     assignment.team_id      ?? null,
+        snapped_group_id:    assignment.group_id     ?? null,
+        snapped_division_id: assignment.division_id  ?? null,
       })
       .select()
       .single()

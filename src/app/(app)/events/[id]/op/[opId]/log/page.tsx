@@ -34,7 +34,7 @@ export default function LogPage() {
   const [submitting, setSubmitting] = useState(false)
   const [validationError, setValidationError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const [notAssigned, setNotAssigned] = useState(false)
+  const [loaded, setLoaded] = useState(false)
   const [newEntryId, setNewEntryId] = useState<string | null>(null)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [showToast, setShowToast] = useState(false)
@@ -67,19 +67,19 @@ export default function LogPage() {
       .eq('user_id', user.id)
       .single()
 
-    if (!a) { setNotAssigned(true); return }
-
     const { data: ents } = await supabase
       .from('activity_entries')
       .select('*')
-      .eq('assignment_id', a.id)
+      .eq('operational_period_id', opId)
+      .eq('user_id', user.id)
       .order('entry_time', { ascending: false })
 
     setProfile(p)
     setEvent(e)
     setOp(o)
-    setAssignment(a)
+    setAssignment(a ?? null)
     setEntries(ents ?? [])
+    setLoaded(true)
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -97,16 +97,22 @@ export default function LogPage() {
 
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user || !assignment) { setSubmitting(false); return }
+    if (!user) { setSubmitting(false); return }
 
     const { data: entry, error: err } = await supabase
       .from('activity_entries')
       .insert({
         operational_period_id: opId,
-        assignment_id: assignment.id,
+        assignment_id: assignment?.id ?? null,
         user_id: user.id,
         entry_time: new Date().toISOString(),
         narrative: trimmed,
+        is_staging: !assignment,
+        snapped_section:     assignment?.section     ?? null,
+        snapped_position:    assignment?.ics_position ?? null,
+        snapped_team_id:     assignment?.team_id     ?? null,
+        snapped_group_id:    assignment?.group_id    ?? null,
+        snapped_division_id: assignment?.division_id ?? null,
       })
       .select()
       .single()
@@ -146,18 +152,7 @@ export default function LogPage() {
     }
   }
 
-  if (notAssigned) return (
-    <div className="min-h-screen bg-[#0B0F14] flex items-center justify-center px-4">
-      <div className="text-center">
-        <p className="text-[#9CA3AF] mb-4">You are not assigned to this operational period.</p>
-        <Link href={`/events/${eventId}`} className="text-[#FF5A1F] text-sm hover:text-[#FF6A33] transition-colors">
-          ← Back to Event
-        </Link>
-      </div>
-    </div>
-  )
-
-  if (!assignment) return (
+  if (!loaded) return (
     <div className="min-h-screen bg-[#0B0F14] flex items-center justify-center">
       <p className="text-[#6B7280] text-sm">Loading...</p>
     </div>
@@ -180,7 +175,10 @@ export default function LogPage() {
             <p className="hidden sm:block text-xs text-[#6B7280] mt-0.5">
               OP {op?.period_number}
               <span className="text-[#232B36] mx-1.5">·</span>
-              {getPositionLabel(assignment?.ics_position)}
+              {assignment
+                ? getPositionLabel(assignment.ics_position)
+                : <span className="text-[#F59E0B]">Staging</span>
+              }
               <span className="text-[#232B36] mx-1.5">·</span>
               <span className="text-[#9CA3AF]">{profile?.full_name}</span>
             </p>
