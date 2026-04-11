@@ -73,7 +73,11 @@ export default function StaffPage() {
 
   // Drag overlay — custom floating card that follows the pointer
   const [dragOverlayData, setDragOverlayData] = useState<{ name: string; sub: string } | null>(null)
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
+  // Overlay element ref — position updated via direct style mutation to avoid
+  // React state updates during dragover, which would re-render the entire tree
+  // at 60fps and unmount/remount the nested sub-components (EmptySlot, FilledSlot,
+  // etc.), destroying their DOM nodes before the drop event can fire on them.
+  const overlayRef = useRef<HTMLDivElement | null>(null)
   // Ghost element held in the DOM during a drag so setDragImage has a valid target
   const dragGhostRef = useRef<HTMLDivElement | null>(null)
 
@@ -95,9 +99,14 @@ export default function StaffPage() {
 
   useEffect(() => { load() }, [opId])
 
-  // Track cursor position via dragover — mousemove does not fire during HTML5 drag
+  // Track cursor via dragover and move overlay via direct DOM mutation — no setState
   useEffect(() => {
-    const onDragOver = (e: DragEvent) => setMousePos({ x: e.clientX, y: e.clientY })
+    const onDragOver = (e: DragEvent) => {
+      if (overlayRef.current) {
+        overlayRef.current.style.left = `${e.clientX + 14}px`
+        overlayRef.current.style.top  = `${e.clientY - 14}px`
+      }
+    }
     document.addEventListener('dragover', onDragOver)
     return () => document.removeEventListener('dragover', onDragOver)
   }, [])
@@ -1254,11 +1263,12 @@ export default function StaffPage() {
         </div>
       )}
 
-      {/* Drag overlay — floating card that follows the pointer */}
+      {/* Drag overlay — position driven by direct style mutation, NOT React state */}
       {dragOverlayData && (
         <div
+          ref={overlayRef}
           className="fixed pointer-events-none z-[9999]"
-          style={{ left: mousePos.x + 14, top: mousePos.y - 14, transform: 'rotate(1.5deg)' }}
+          style={{ left: '-9999px', top: '-9999px', transform: 'rotate(1.5deg)' }}
         >
           <div className="flex items-center gap-2 px-2.5 py-2 rounded-lg border border-[#4a5568] bg-[#1e2a3a] shadow-2xl shadow-black/70 w-52">
             <div className="w-7 h-7 rounded-full bg-[#232B36] border border-[#4a5568] flex items-center justify-center text-[10px] font-mono text-[#9CA3AF] flex-shrink-0">
