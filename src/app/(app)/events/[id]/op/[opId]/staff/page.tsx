@@ -78,6 +78,7 @@ export default function StaffPage() {
 
   // Lifecycle state — check-ins and demob requests (with nested approvals) for this OP
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [isAdmin, setIsAdmin]             = useState(false)
   const [checkins, setCheckins]           = useState<any[]>([])
   const [demobRequests, setDemobRequests] = useState<any[]>([])
 
@@ -153,6 +154,10 @@ export default function StaffPage() {
     setOp(opData)
     setProfiles(pData ?? [])
     setProfileMap((pData ?? []).reduce((acc: any, p: any) => { acc[p.id] = p; return acc }, {}))
+    if (user) {
+      const myProfile = (pData ?? []).find((p: any) => p.id === user.id)
+      setIsAdmin(myProfile?.role === 'admin')
+    }
     setAssignments(aData ?? [])
     setDivisions(divData ?? [])
     setGroups(grpData ?? [])
@@ -757,6 +762,17 @@ export default function StaffPage() {
   function EmptySlot({ label, dropKey, onDrop, onClickAssign }: {
     label: string; dropKey: string; onDrop: (e: React.DragEvent) => void; onClickAssign: () => void
   }) {
+    // Non-admin: show a dimmed vacant placeholder — no drop zone
+    if (!isAdmin) {
+      return (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-[#1a2235] bg-[#0a0e14]/30">
+          <div className="w-6 h-6 rounded-full bg-[#0f1419] border border-dashed border-[#1f2937] flex items-center justify-center flex-shrink-0">
+            <span className="text-[9px] text-[#1f2937]">—</span>
+          </div>
+          <span className="text-[10px] text-[#2a3545] flex-1 truncate font-mono">{label} · Vacant</span>
+        </div>
+      )
+    }
     const isOver = dragOverKey === dropKey
     return (
       <div
@@ -840,12 +856,14 @@ export default function StaffPage() {
               onClick={e => { e.stopPropagation(); setMobileActionSheet({ assignment, profile: p }) }}
               className="md:hidden text-[#92400E] w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F59E0B]/10 flex-shrink-0 touch-manipulation text-base leading-none"
             >⋮</button>
-            {/* Desktop: cancel demob */}
-            <button
-              onClick={e => { e.stopPropagation(); cancelDemobRequest(assignment.user_id) }}
-              className="hidden md:block text-[#F59E0B] text-[9px] font-semibold px-1.5 py-0.5 rounded hover:bg-[#F59E0B]/15 transition-colors flex-shrink-0"
-              title="Cancel demob request"
-            >Cancel</button>
+            {/* Desktop: cancel demob — admin only */}
+            {isAdmin && (
+              <button
+                onClick={e => { e.stopPropagation(); cancelDemobRequest(assignment.user_id) }}
+                className="hidden md:block text-[#F59E0B] text-[9px] font-semibold px-1.5 py-0.5 rounded hover:bg-[#F59E0B]/15 transition-colors flex-shrink-0"
+                title="Cancel demob request"
+              >Cancel</button>
+            )}
           </div>
         </div>
       )
@@ -855,10 +873,10 @@ export default function StaffPage() {
     if (isPreassigned) {
       return (
         <div
-          draggable
-          onDragStart={e => dragStartAssignment(assignment.id, e)}
-          onDragEnd={dragEnd}
-          className={`group flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors cursor-grab active:cursor-grabbing select-none ${
+          draggable={isAdmin}
+          onDragStart={isAdmin ? e => dragStartAssignment(assignment.id, e) : undefined}
+          onDragEnd={isAdmin ? dragEnd : undefined}
+          className={`group flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors ${isAdmin ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'} select-none ${
             isBeingDragged
               ? 'opacity-60 border-[#8B5CF6]/40 bg-[#8B5CF6]/5'
               : 'bg-[#0f0f1a] border-[#8B5CF6]/25 hover:border-[#8B5CF6]/50'
@@ -878,23 +896,29 @@ export default function StaffPage() {
           <span className="text-[9px] font-bold text-[#8B5CF6] bg-[#8B5CF6]/12 border border-[#8B5CF6]/25 px-1.5 py-px rounded font-mono flex-shrink-0">
             Preassigned
           </span>
-          {/* Check In shortcut */}
-          <button
-            onClick={e => { e.stopPropagation(); performCheckin(assignment.user_id) }}
-            className="hidden md:flex flex-shrink-0 text-[9px] font-semibold text-[#3B82F6] bg-[#3B82F6]/10 hover:bg-[#3B82F6]/20 border border-[#3B82F6]/20 px-1.5 py-px rounded font-mono transition-colors opacity-0 group-hover:opacity-100"
-            title="Check in now"
-          >Check In</button>
-          {/* Mobile action sheet */}
-          <button
-            onClick={e => { e.stopPropagation(); setMobileActionSheet({ assignment, profile: p }) }}
-            className="md:hidden text-[#6B5FA6] w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#8B5CF6]/10 flex-shrink-0 touch-manipulation text-base leading-none"
-          >⋮</button>
-          {/* Desktop: remove */}
-          <button
-            onClick={e => { e.stopPropagation(); removeAssignment(assignment.id) }}
-            className="hidden md:flex text-[#374151] hover:text-red-400 transition-colors text-sm w-5 h-5 items-center justify-center rounded hover:bg-red-500/10 opacity-0 group-hover:opacity-100"
-            title="Remove preassignment"
-          >×</button>
+          {/* Check In shortcut — admin only */}
+          {isAdmin && (
+            <button
+              onClick={e => { e.stopPropagation(); performCheckin(assignment.user_id) }}
+              className="hidden md:flex flex-shrink-0 text-[9px] font-semibold text-[#3B82F6] bg-[#3B82F6]/10 hover:bg-[#3B82F6]/20 border border-[#3B82F6]/20 px-1.5 py-px rounded font-mono transition-colors opacity-0 group-hover:opacity-100"
+              title="Check in now"
+            >Check In</button>
+          )}
+          {/* Mobile action sheet — admin only */}
+          {isAdmin && (
+            <button
+              onClick={e => { e.stopPropagation(); setMobileActionSheet({ assignment, profile: p }) }}
+              className="md:hidden text-[#6B5FA6] w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#8B5CF6]/10 flex-shrink-0 touch-manipulation text-base leading-none"
+            >⋮</button>
+          )}
+          {/* Desktop: remove — admin only */}
+          {isAdmin && (
+            <button
+              onClick={e => { e.stopPropagation(); removeAssignment(assignment.id) }}
+              className="hidden md:flex text-[#374151] hover:text-red-400 transition-colors text-sm w-5 h-5 items-center justify-center rounded hover:bg-red-500/10 opacity-0 group-hover:opacity-100"
+              title="Remove preassignment"
+            >×</button>
+          )}
         </div>
       )
     }
@@ -902,10 +926,10 @@ export default function StaffPage() {
     // ── Normal assigned slot (checked in + assigned) ──────────────
     return (
       <div
-        draggable
-        onDragStart={e => dragStartAssignment(assignment.id, e)}
-        onDragEnd={dragEnd}
-        className={`group flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors cursor-grab active:cursor-grabbing select-none ${
+        draggable={isAdmin}
+        onDragStart={isAdmin ? e => dragStartAssignment(assignment.id, e) : undefined}
+        onDragEnd={isAdmin ? dragEnd : undefined}
+        className={`group flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors ${isAdmin ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'} select-none ${
           isBeingDragged
             ? 'opacity-60 border-[#FF5A1F]/40 bg-[#FF5A1F]/5'
             : 'bg-[#121821] border-[#232B36] hover:border-[#3a4555]'
@@ -931,25 +955,28 @@ export default function StaffPage() {
           </div>
           {last && <p className="text-[9px] text-[#4B5563] leading-none">{fmtAgo(last)}</p>}
         </div>
-        {/* Mobile: tap to open action sheet */}
-        <button
-          onClick={e => { e.stopPropagation(); setMobileActionSheet({ assignment, profile: p }) }}
-          className="md:hidden text-[#6B7280] w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#232B36] flex-shrink-0 touch-manipulation text-base leading-none"
-          title="Actions"
-        >⋮</button>
-        {/* Desktop: demob request + return to staging */}
-        <div className="hidden md:flex items-center gap-0.5 flex-shrink-0">
-          <button
-            onClick={e => { e.stopPropagation(); performDemobRequest(assignment.user_id, assignment.id) }}
-            className="text-[#374151] hover:text-[#F59E0B] transition-colors w-5 h-5 flex items-center justify-center rounded hover:bg-[#F59E0B]/10 opacity-0 group-hover:opacity-100 text-xs"
-            title="Request demobilization"
-          >↓</button>
-          <button
-            onClick={e => { e.stopPropagation(); removeAssignment(assignment.id) }}
-            className="text-[#374151] hover:text-red-400 transition-colors text-sm w-5 h-5 flex items-center justify-center rounded hover:bg-red-500/10"
-            title="Return to staging"
-          >×</button>
-        </div>
+        {/* Mobile action sheet + desktop actions — admin only */}
+        {isAdmin && (
+          <>
+            <button
+              onClick={e => { e.stopPropagation(); setMobileActionSheet({ assignment, profile: p }) }}
+              className="md:hidden text-[#6B7280] w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#232B36] flex-shrink-0 touch-manipulation text-base leading-none"
+              title="Actions"
+            >⋮</button>
+            <div className="hidden md:flex items-center gap-0.5 flex-shrink-0">
+              <button
+                onClick={e => { e.stopPropagation(); performDemobRequest(assignment.user_id, assignment.id) }}
+                className="text-[#374151] hover:text-[#F59E0B] transition-colors w-5 h-5 flex items-center justify-center rounded hover:bg-[#F59E0B]/10 opacity-0 group-hover:opacity-100 text-xs"
+                title="Request demobilization"
+              >↓</button>
+              <button
+                onClick={e => { e.stopPropagation(); removeAssignment(assignment.id) }}
+                className="text-[#374151] hover:text-red-400 transition-colors text-sm w-5 h-5 flex items-center justify-center rounded hover:bg-red-500/10"
+                title="Return to staging"
+              >×</button>
+            </div>
+          </>
+        )}
       </div>
     )
   }
@@ -981,24 +1008,26 @@ export default function StaffPage() {
               {members.map((m: any) => <FilledSlot key={m.id} label={getPositionLabel(m.ics_position)} assignment={m} />)}
             </div>
           )}
-          <div
-            className={`flex items-center gap-2 px-2 py-1.5 rounded border border-dashed transition-colors mt-1 ${
-              memberIsOver ? 'border-[#38BDF8] bg-[#38BDF8]/10 shadow-[0_0_0_1px_rgba(56,189,248,0.2)]' : isDragging ? 'border-[#2a3545]' : 'border-[#1a2235]'
-            }`}
-            {...dragOverProps(memberDropKey)}
-            onDrop={e => performDrop(e, team.id, 'team_member')}
-          >
-            <span className={`text-[10px] flex-1 font-mono ${memberIsOver ? 'text-[#38BDF8]' : 'text-[#1f2937]'}`}>
-              {memberIsOver ? '↓ Drop to add member' : '+ members'}
-            </span>
-            {!isDragging && (
-              <button
-                onClick={() => { openAssign(null); setCaSection('operations'); setCaTeamId(team.id); setCaPosition('') }}
-                className="text-[10px] text-[#374151] hover:text-[#38BDF8] transition-colors font-mono">
-                Add
-              </button>
-            )}
-          </div>
+          {isAdmin && (
+            <div
+              className={`flex items-center gap-2 px-2 py-1.5 rounded border border-dashed transition-colors mt-1 ${
+                memberIsOver ? 'border-[#38BDF8] bg-[#38BDF8]/10 shadow-[0_0_0_1px_rgba(56,189,248,0.2)]' : isDragging ? 'border-[#2a3545]' : 'border-[#1a2235]'
+              }`}
+              {...dragOverProps(memberDropKey)}
+              onDrop={e => performDrop(e, team.id, 'team_member')}
+            >
+              <span className={`text-[10px] flex-1 font-mono ${memberIsOver ? 'text-[#38BDF8]' : 'text-[#1f2937]'}`}>
+                {memberIsOver ? '↓ Drop to add member' : '+ members'}
+              </span>
+              {!isDragging && (
+                <button
+                  onClick={() => { openAssign(null); setCaSection('operations'); setCaTeamId(team.id); setCaPosition('') }}
+                  className="text-[10px] text-[#374151] hover:text-[#38BDF8] transition-colors font-mono">
+                  Add
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     )
@@ -1015,11 +1044,13 @@ export default function StaffPage() {
         <div className="px-3 py-2 bg-[#161D26] flex items-center gap-2">
           <span className="text-[10px] font-mono text-[#6B7280] uppercase tracking-wider">Group</span>
           <span className="text-sm font-semibold text-[#E5E7EB] flex-1">{group.name}</span>
-          <button
-            onClick={() => { setAddingTeamToGroup(isAddingTeam ? null : group.id); setAddingTeamName('') }}
-            className="text-[10px] text-[#374151] hover:text-[#FF5A1F] transition-colors font-mono px-1.5 py-0.5 rounded hover:bg-[#FF5A1F]/10">
-            + Team
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => { setAddingTeamToGroup(isAddingTeam ? null : group.id); setAddingTeamName('') }}
+              className="text-[10px] text-[#374151] hover:text-[#FF5A1F] transition-colors font-mono px-1.5 py-0.5 rounded hover:bg-[#FF5A1F]/10">
+              + Team
+            </button>
+          )}
         </div>
         <div className="px-3 py-2 space-y-2 bg-[#0f1419]/40">
           {supervisorAssignment
@@ -1332,34 +1363,42 @@ export default function StaffPage() {
             ← Event
           </Link>
           <div className="w-px h-4 bg-[#232B36]" />
-          <div className="min-w-0 flex-1">
-            <span className="text-xs font-semibold text-[#E5E7EB]">Staff — OP {op?.period_number}</span>
-            <span className="text-[10px] text-[#4B5563] ml-2 font-mono">Command OS</span>
+          <div className="min-w-0 flex-1 flex items-center gap-2">
+            <span className="text-xs font-semibold text-[#E5E7EB]">Org Chart — OP {op?.period_number}</span>
+            {!isAdmin && (
+              <span className="text-[9px] font-mono text-[#4B5563] bg-[#1a2235] border border-[#232B36] px-1.5 py-px rounded uppercase tracking-wide">
+                View Only
+              </span>
+            )}
           </div>
-          <Link
-            href={`/events/${eventId}/op/${opId}/checkin`}
-            className="flex-shrink-0 text-xs text-[#6B7280] hover:text-[#E5E7EB] border border-[#232B36] hover:border-[#3a4555] px-2.5 py-1.5 rounded-lg transition-colors"
-          >
-            Check-In
-          </Link>
+          {isAdmin && (
+            <Link
+              href={`/events/${eventId}/op/${opId}/checkin`}
+              className="flex-shrink-0 text-xs text-[#6B7280] hover:text-[#E5E7EB] border border-[#232B36] hover:border-[#3a4555] px-2.5 py-1.5 rounded-lg transition-colors"
+            >
+              Check-In
+            </Link>
+          )}
           <Link
             href={`/events/${eventId}/op/${opId}/dashboard`}
             className="hidden sm:block flex-shrink-0 text-xs text-[#6B7280] hover:text-[#E5E7EB] border border-[#232B36] hover:border-[#3a4555] px-2.5 py-1.5 rounded-lg transition-colors"
           >
             Dashboard
           </Link>
-          <button
-            className="md:hidden flex items-center gap-1.5 text-xs text-[#FF5A1F] bg-[#FF5A1F]/10 px-2.5 py-1.5 rounded-lg font-medium"
-            onClick={() => setMobileStagingOpen(v => !v)}
-          >
-            Staging
-            <span className="text-[10px] font-mono bg-[#FF5A1F] text-white px-1 rounded">{checkedInStaged.length}</span>
-          </button>
+          {isAdmin && (
+            <button
+              className="md:hidden flex items-center gap-1.5 text-xs text-[#FF5A1F] bg-[#FF5A1F]/10 px-2.5 py-1.5 rounded-lg font-medium"
+              onClick={() => setMobileStagingOpen(v => !v)}
+            >
+              Staging
+              <span className="text-[10px] font-mono bg-[#FF5A1F] text-white px-1 rounded">{checkedInStaged.length}</span>
+            </button>
+          )}
         </div>
       </header>
 
-      {/* Mobile staging drawer */}
-      {mobileStagingOpen && (
+      {/* Mobile staging drawer — admin only */}
+      {isAdmin && mobileStagingOpen && (
         <div className="md:hidden fixed inset-0 z-40 bg-black/70" onClick={() => setMobileStagingOpen(false)}>
           <div className="absolute inset-x-0 bottom-0 bg-[#161D26] border-t border-[#232B36] rounded-t-2xl max-h-[70vh] flex flex-col"
             onClick={e => e.stopPropagation()}>
@@ -1375,10 +1414,12 @@ export default function StaffPage() {
       {/* Body */}
       <div className="flex flex-1 max-w-5xl mx-auto w-full">
 
-        {/* Staging sidebar — desktop */}
-        <aside className="hidden md:flex flex-col w-60 border-r border-[#232B36]/60 sticky top-[92px] h-[calc(100vh-92px)]">
-          {StagingContent}
-        </aside>
+        {/* Staging sidebar — desktop, admin only */}
+        {isAdmin && (
+          <aside className="hidden md:flex flex-col w-60 border-r border-[#232B36]/60 sticky top-[92px] h-[calc(100vh-92px)]">
+            {StagingContent}
+          </aside>
+        )}
 
         {/* Org canvas */}
         <main className="flex-1 overflow-y-auto px-4 py-5 space-y-4 pb-24">
@@ -1503,52 +1544,56 @@ export default function StaffPage() {
                               <p className="text-[10px] text-[#4B5563] leading-none mt-px truncate">{r.agency}</p>
                             )}
                           </div>
-                          <button
-                            onClick={() => removeAgencyRep(r.id)}
-                            className="text-[#374151] hover:text-red-400 transition-colors text-sm w-5 h-5 flex items-center justify-center rounded hover:bg-red-500/10 flex-shrink-0"
-                            title="Remove">×</button>
+                          {isAdmin && (
+                            <button
+                              onClick={() => removeAgencyRep(r.id)}
+                              className="text-[#374151] hover:text-red-400 transition-colors text-sm w-5 h-5 flex items-center justify-center rounded hover:bg-red-500/10 flex-shrink-0"
+                              title="Remove">×</button>
+                          )}
                         </div>
                       ))}
                     </div>
                   )}
 
-                  {/* Drop zone for staging drags */}
-                  <div
-                    className={`flex items-center gap-2 px-2 py-2 rounded-lg border border-dashed transition-colors ${
-                      repIsOver
-                        ? 'border-[#FF5A1F] bg-[#FF5A1F]/10'
-                        : isDragging
-                        ? 'border-[#374151] bg-[#0f1419]'
-                        : 'border-[#1a2235]'
-                    }`}
-                    onDragOver={e => { e.preventDefault(); if (draggingProfileId || draggingAssignmentId) { e.dataTransfer.dropEffect = 'move'; setDragOverKey(repDropKey) } }}
-                    onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverKey(null) }}
-                    onDrop={async e => {
-                      e.preventDefault()
-                      const aid = e.dataTransfer.getData('assignment-id')
-                      const pid = e.dataTransfer.getData('profile-id')
-                      dragEnd()
-                      const tid = await ensureSysTeam('__command__', null, null)
-                      if (!tid) return
-                      if (aid) { await reassignTo(aid, tid, 'agency_representative'); return }
-                      if (pid) await createAssignment(pid, tid, 'agency_representative')
-                    }}
-                  >
-                    <span className={`text-[10px] flex-1 font-mono ${repIsOver ? 'text-[#FF5A1F]' : 'text-[#1f2937]'}`}>
-                      {repIsOver ? '↓ Drop to add as Agency Rep' : '+ drag person here'}
-                    </span>
-                    {!isDragging && (
-                      <button
-                        onClick={() => { setShowAddRep(v => !v); setAddingRepName(''); setAddingRepAgency('') }}
-                        className="text-[10px] text-[#374151] hover:text-[#FF5A1F] transition-colors font-mono px-1.5 py-0.5 rounded hover:bg-[#FF5A1F]/10 flex-shrink-0"
-                      >
-                        + Add manually
-                      </button>
-                    )}
-                  </div>
+                  {/* Drop zone for staging drags — admin only */}
+                  {isAdmin && (
+                    <div
+                      className={`flex items-center gap-2 px-2 py-2 rounded-lg border border-dashed transition-colors ${
+                        repIsOver
+                          ? 'border-[#FF5A1F] bg-[#FF5A1F]/10'
+                          : isDragging
+                          ? 'border-[#374151] bg-[#0f1419]'
+                          : 'border-[#1a2235]'
+                      }`}
+                      onDragOver={e => { e.preventDefault(); if (draggingProfileId || draggingAssignmentId) { e.dataTransfer.dropEffect = 'move'; setDragOverKey(repDropKey) } }}
+                      onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverKey(null) }}
+                      onDrop={async e => {
+                        e.preventDefault()
+                        const aid = e.dataTransfer.getData('assignment-id')
+                        const pid = e.dataTransfer.getData('profile-id')
+                        dragEnd()
+                        const tid = await ensureSysTeam('__command__', null, null)
+                        if (!tid) return
+                        if (aid) { await reassignTo(aid, tid, 'agency_representative'); return }
+                        if (pid) await createAssignment(pid, tid, 'agency_representative')
+                      }}
+                    >
+                      <span className={`text-[10px] flex-1 font-mono ${repIsOver ? 'text-[#FF5A1F]' : 'text-[#1f2937]'}`}>
+                        {repIsOver ? '↓ Drop to add as Agency Rep' : '+ drag person here'}
+                      </span>
+                      {!isDragging && (
+                        <button
+                          onClick={() => { setShowAddRep(v => !v); setAddingRepName(''); setAddingRepAgency('') }}
+                          className="text-[10px] text-[#374151] hover:text-[#FF5A1F] transition-colors font-mono px-1.5 py-0.5 rounded hover:bg-[#FF5A1F]/10 flex-shrink-0"
+                        >
+                          + Add manually
+                        </button>
+                      )}
+                    </div>
+                  )}
 
-                  {/* Manual add form */}
-                  {showAddRep && (
+                  {/* Manual add form — admin only */}
+                  {isAdmin && showAddRep && (
                     <div className="mt-2 space-y-1.5">
                       <input
                         autoFocus
@@ -1595,27 +1640,30 @@ export default function StaffPage() {
               <div className="px-4 py-2.5 bg-[#161D26] flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-[#EF4444] flex-shrink-0" />
                 <span className="text-xs font-bold text-[#9CA3AF] uppercase tracking-widest flex-1">Operations</span>
-                {/* Group always first — most frequent */}
-                <button
-                  onClick={() => { setShowAddGroup(true); setAddingGroupName('') }}
-                  className="text-[10px] font-medium text-[#9CA3AF] bg-[#1a2235] border border-[#2d3a4a] hover:border-[#FF5A1F]/50 hover:text-[#FF5A1F] px-2 py-1 rounded-md transition-colors"
-                >
-                  + Group
-                </button>
-                {hasOpsStructure && (
+                {isAdmin && (
                   <>
                     <button
-                      onClick={() => { setShowAddUnit('division'); setAddingUnitName('') }}
-                      className="text-[10px] font-medium text-[#9CA3AF] bg-[#1a2235] border border-[#2d3a4a] hover:border-[#38BDF8]/50 hover:text-[#38BDF8] px-2 py-1 rounded-md transition-colors"
+                      onClick={() => { setShowAddGroup(true); setAddingGroupName('') }}
+                      className="text-[10px] font-medium text-[#9CA3AF] bg-[#1a2235] border border-[#2d3a4a] hover:border-[#FF5A1F]/50 hover:text-[#FF5A1F] px-2 py-1 rounded-md transition-colors"
                     >
-                      + Division
+                      + Group
                     </button>
-                    <button
-                      onClick={() => { setShowAddUnit('branch'); setAddingUnitName('') }}
-                      className="text-[10px] font-medium text-[#9CA3AF] bg-[#1a2235] border border-[#2d3a4a] hover:border-[#F97316]/50 hover:text-[#F97316] px-2 py-1 rounded-md transition-colors"
-                    >
-                      + Branch
-                    </button>
+                    {hasOpsStructure && (
+                      <>
+                        <button
+                          onClick={() => { setShowAddUnit('division'); setAddingUnitName('') }}
+                          className="text-[10px] font-medium text-[#9CA3AF] bg-[#1a2235] border border-[#2d3a4a] hover:border-[#38BDF8]/50 hover:text-[#38BDF8] px-2 py-1 rounded-md transition-colors"
+                        >
+                          + Division
+                        </button>
+                        <button
+                          onClick={() => { setShowAddUnit('branch'); setAddingUnitName('') }}
+                          className="text-[10px] font-medium text-[#9CA3AF] bg-[#1a2235] border border-[#2d3a4a] hover:border-[#F97316]/50 hover:text-[#F97316] px-2 py-1 rounded-md transition-colors"
+                        >
+                          + Branch
+                        </button>
+                      </>
+                    )}
                   </>
                 )}
               </div>
@@ -1645,19 +1693,25 @@ export default function StaffPage() {
 
             {/* Empty state */}
             {!hasOpsStructure && !showAddGroup && (
-              <div className="rounded-xl border border-dashed border-[#232B36] py-8 px-4 text-center space-y-3">
-                <div className="space-y-1">
-                  <p className="text-sm font-semibold text-[#9CA3AF]">No operations structure yet</p>
-                  <p className="text-xs text-[#4B5563]">Start by creating a Group. Teams live inside Groups.</p>
+              isAdmin ? (
+                <div className="rounded-xl border border-dashed border-[#232B36] py-8 px-4 text-center space-y-3">
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-[#9CA3AF]">No operations structure yet</p>
+                    <p className="text-xs text-[#4B5563]">Start by creating a Group. Teams live inside Groups.</p>
+                  </div>
+                  <button
+                    onClick={() => { setShowAddGroup(true); setAddingGroupName('') }}
+                    className="inline-flex items-center gap-1.5 bg-[#FF5A1F] text-white text-xs font-semibold px-4 py-2 rounded-xl hover:bg-[#FF6A33] transition-colors"
+                  >
+                    <span className="text-base leading-none">+</span> Add Group
+                  </button>
+                  <p className="text-[10px] text-[#374151] font-mono">Divisions and Branches can be added after groups exist</p>
                 </div>
-                <button
-                  onClick={() => { setShowAddGroup(true); setAddingGroupName('') }}
-                  className="inline-flex items-center gap-1.5 bg-[#FF5A1F] text-white text-xs font-semibold px-4 py-2 rounded-xl hover:bg-[#FF6A33] transition-colors"
-                >
-                  <span className="text-base leading-none">+</span> Add Group
-                </button>
-                <p className="text-[10px] text-[#374151] font-mono">Divisions and Branches can be added after groups exist</p>
-              </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-[#1a2235] py-8 px-4 text-center">
+                  <p className="text-sm text-[#374151]">No operations structure configured</p>
+                </div>
+              )
             )}
 
             {branches.map((b: any) => <UnitBlock key={b.id} unit={b} />)}
@@ -1666,14 +1720,14 @@ export default function StaffPage() {
             {unassignedGroups.map((g: any) => (
               <div
                 key={g.id}
-                draggable={hasDivUnits}
-                onDragStart={e => {
+                draggable={isAdmin && hasDivUnits}
+                onDragStart={isAdmin ? e => {
                   if (!hasDivUnits) return
                   setDraggingGroupId(g.id)
                   e.dataTransfer.effectAllowed = 'move'
                   e.dataTransfer.setData('group-id', g.id)
-                }}
-                onDragEnd={dragEnd}
+                } : undefined}
+                onDragEnd={isAdmin ? dragEnd : undefined}
               >
                 <GroupBlock group={g} />
               </div>

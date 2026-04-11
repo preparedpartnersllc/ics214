@@ -789,15 +789,26 @@ export default function EventDetailPage() {
             <section className="mb-8">
               <div className="flex items-center justify-between mb-3">
                 <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide">Personnel</p>
-                <Link
-                  href={`/events/${id}/roster`}
-                  className="inline-flex items-center gap-1 text-xs font-medium text-[#6B7280] hover:text-[#E5E7EB] transition-colors py-1 px-2 -mr-2 rounded-lg hover:bg-[#161D26]"
-                >
-                  View All
-                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <path d="M5 12h14M12 5l7 7-7 7"/>
-                  </svg>
-                </Link>
+                <div className="flex items-center gap-1">
+                  <Link
+                    href={`/events/${id}/op/${activeOp.id}/staff`}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-[#22C55E] hover:text-[#34D399] transition-colors py-1 px-2 rounded-lg hover:bg-[#161D26]"
+                  >
+                    Org Chart
+                    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                  </Link>
+                  <Link
+                    href={`/events/${id}/roster`}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-[#6B7280] hover:text-[#E5E7EB] transition-colors py-1 px-2 -mr-2 rounded-lg hover:bg-[#161D26]"
+                  >
+                    Roster
+                    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                  </Link>
+                </div>
               </div>
 
               <div className="bg-[#161D26] border border-[#232B36] rounded-2xl overflow-hidden">
@@ -1272,7 +1283,7 @@ export default function EventDetailPage() {
                                   href={`/events/${id}/op/${op.id}/staff`}
                                   className="text-xs text-[#22C55E] hover:text-[#34D399] transition-colors font-medium"
                                 >
-                                  Staff
+                                  Org Chart
                                 </Link>
                               </>
                             )}
