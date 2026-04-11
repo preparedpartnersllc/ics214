@@ -5,8 +5,8 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'ICS 214 — Activity Log',
-  description: 'Digital activity logging for ICS operations',
+  title: 'Command OS',
+  description: 'Incident management and personnel accountability for fire and emergency services.',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

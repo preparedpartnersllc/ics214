@@ -14,32 +14,30 @@ import {
 } from '@/lib/ics-positions'
 import Link from 'next/link'
 
-// Positions that may only be held once per unit slot
 const UNIQUE_POSITIONS = new Set([
   'team_leader','group_supervisor','division_supervisor','branch_director',
   'incident_commander','deputy_incident_commander','safety_officer',
-  'public_information_officer','liaison_officer','agency_representative',
+  'public_information_officer','liaison_officer',
   'operations_section_chief','planning_section_chief',
   'logistics_section_chief','finance_admin_section_chief',
 ])
 
 const COMMAND_SLOTS = [
-  { position: 'incident_commander',        label: 'Incident Commander',       short: 'IC' },
-  { position: 'deputy_incident_commander', label: 'Deputy IC',                short: 'Dep IC' },
-  { position: 'safety_officer',            label: 'Safety Officer',           short: 'Safety' },
-  { position: 'public_information_officer',label: 'Public Info Officer',      short: 'PIO' },
-  { position: 'liaison_officer',           label: 'Liaison Officer',          short: 'Liaison' },
-  { position: 'agency_representative',     label: 'Agency Representative',    short: 'Agency' },
+  { position: 'incident_commander',         label: 'Incident Commander'  },
+  { position: 'deputy_incident_commander',  label: 'Deputy IC'           },
+  { position: 'safety_officer',             label: 'Safety Officer'      },
+  { position: 'public_information_officer', label: 'Public Info Officer' },
+  { position: 'liaison_officer',            label: 'Liaison Officer'     },
 ]
 
 const SECTION_DEFS = [
-  { key: 'planning',   label: 'Planning Section',    sysKey: '__planning__',   positions: PLANNING_POSITIONS },
-  { key: 'logistics',  label: 'Logistics Section',   sysKey: '__logistics__',  positions: LOGISTICS_POSITIONS },
-  { key: 'finance',    label: 'Finance / Admin',      sysKey: '__finance__',   positions: FINANCE_POSITIONS },
+  { key: 'planning',  label: 'Planning Section',  sysKey: '__planning__',  positions: PLANNING_POSITIONS  },
+  { key: 'logistics', label: 'Logistics Section', sysKey: '__logistics__', positions: LOGISTICS_POSITIONS },
+  { key: 'finance',   label: 'Finance / Admin',   sysKey: '__finance__',   positions: FINANCE_POSITIONS   },
 ]
 
 export default function StagePage() {
-  const params = useParams()
+  const params  = useParams()
   const eventId = params.id as string
   const opId    = params.opId as string
 
@@ -50,27 +48,44 @@ export default function StagePage() {
   const [divisions, setDivisions]     = useState<any[]>([])
   const [groups, setGroups]           = useState<any[]>([])
   const [teams, setTeams]             = useState<any[]>([])
+  const [agencyReps, setAgencyReps]   = useState<any[]>([])
   const [loading, setLoading]         = useState(true)
   const [saving, setSaving]           = useState(false)
 
   // Staging panel
-  const [stagingQuery, setStagingQuery]   = useState('')
+  const [stagingQuery, setStagingQuery]           = useState('')
   const [mobileStagingOpen, setMobileStagingOpen] = useState(false)
 
-  // DnD
-  const [draggingProfileId, setDraggingProfileId] = useState<string | null>(null)
-  const [dragOverKey, setDragOverKey]             = useState<string | null>(null)
+  // Agency rep manual add
+  const [showAddRep, setShowAddRep]       = useState(false)
+  const [addingRepName, setAddingRepName] = useState('')
+  const [addingRepAgency, setAddingRepAgency] = useState('')
 
-  // Feedback toast
+  // DnD — track profile drags (from staging) and assignment drags (from filled slots) separately
+  const [draggingProfileId, setDraggingProfileId]       = useState<string | null>(null)
+  const [draggingAssignmentId, setDraggingAssignmentId] = useState<string | null>(null)
+  const [draggingGroupId, setDraggingGroupId]           = useState<string | null>(null)
+  const [dragOverKey, setDragOverKey]                   = useState<string | null>(null)
+  const [dragOverDivId, setDragOverDivId]               = useState<string | null>(null)
+
+  // Toast
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
 
   // Click-to-assign modal
-  const [assigningProfile, setAssigningProfile]     = useState<any | null>(null)
-  const [caSection, setCaSection]                   = useState('command')
-  const [caTeamId, setCaTeamId]                     = useState('')
-  const [caPosition, setCaPosition]                 = useState('')
-  const [caError, setCaError]                       = useState<string | null>(null)
-  const [caSaving, setCaSaving]                     = useState(false)
+  const [assigningProfile, setAssigningProfile] = useState<any | null>(null)
+  const [caSection, setCaSection]               = useState('command')
+  const [caTeamId, setCaTeamId]                 = useState('')
+  const [caPosition, setCaPosition]             = useState('')
+  const [caError, setCaError]                   = useState<string | null>(null)
+  const [caSaving, setCaSaving]                 = useState(false)
+
+  // Inline structure creation
+  const [showAddGroup, setShowAddGroup]           = useState(false)
+  const [addingGroupName, setAddingGroupName]     = useState('')
+  const [addingTeamToGroup, setAddingTeamToGroup] = useState<string | null>(null)
+  const [addingTeamName, setAddingTeamName]       = useState('')
+  const [showAddUnit, setShowAddUnit]             = useState<'division' | 'branch' | null>(null)
+  const [addingUnitName, setAddingUnitName]       = useState('')
 
   useEffect(() => { load() }, [opId])
 
@@ -79,6 +94,7 @@ export default function StagePage() {
     const [
       { data: opData }, { data: pData }, { data: aData },
       { data: divData }, { data: grpData }, { data: teamData },
+      { data: repData },
     ] = await Promise.all([
       supabase.from('operational_periods').select('*').eq('id', opId).single(),
       supabase.from('profiles').select('*').eq('is_active', true).order('full_name'),
@@ -86,6 +102,7 @@ export default function StagePage() {
       supabase.from('divisions').select('*').eq('operational_period_id', opId),
       supabase.from('groups').select('*').eq('operational_period_id', opId),
       supabase.from('teams').select('*').eq('operational_period_id', opId),
+      supabase.from('agency_reps').select('*').eq('operational_period_id', opId).order('created_at'),
     ])
     setOp(opData)
     setProfiles(pData ?? [])
@@ -94,10 +111,11 @@ export default function StagePage() {
     setDivisions(divData ?? [])
     setGroups(grpData ?? [])
     setTeams(teamData ?? [])
+    setAgencyReps(repData ?? [])
     setLoading(false)
   }
 
-  // ── Derived ────────────────────────────────────────────────────
+  // ── Derived ──────────────────────────────────────────────────────
   const assignedUserIds = useMemo(
     () => new Set(assignments.map((a: any) => a.user_id)),
     [assignments]
@@ -126,11 +144,19 @@ export default function StagePage() {
     return m
   }, [assignments])
 
-  const opsTeams  = useMemo(() => teams.filter((t: any) => !t.name.startsWith('__')), [teams])
-  const branches  = useMemo(() => divisions.filter((d: any) => d.type === 'branch'), [divisions])
-  const divs      = useMemo(() => divisions.filter((d: any) => d.type === 'division'), [divisions])
+  const opsTeams         = useMemo(() => teams.filter((t: any) => !t.name.startsWith('__')), [teams])
+  const branches         = useMemo(() => divisions.filter((d: any) => d.type === 'branch'), [divisions])
+  const divs             = useMemo(() => divisions.filter((d: any) => d.type === 'division'), [divisions])
   const unassignedGroups = useMemo(() => groups.filter((g: any) => !g.division_id), [groups])
-  const unassignedTeams  = useMemo(() => opsTeams.filter((t: any) => !t.group_id && !t.division_id), [opsTeams])
+
+  // Profile-based agency reps: assignments in __command__ team with agency_representative position
+  const agencyRepAssignments = useMemo(() => {
+    const cmdId = sysTeamIdMap['__command__']
+    if (!cmdId) return []
+    return (assignmentsByTeamId[cmdId] ?? []).filter((a: any) => a.ics_position === 'agency_representative')
+  }, [sysTeamIdMap, assignmentsByTeamId])
+
+  const isDragging = !!(draggingProfileId || draggingAssignmentId)
 
   const caPositions = useMemo(() => {
     switch (caSection) {
@@ -143,12 +169,13 @@ export default function StagePage() {
     }
   }, [caSection])
 
-  // ── Helpers ────────────────────────────────────────────────────
+  // ── Toast ────────────────────────────────────────────────────────
   function showToast(msg: string, ok: boolean) {
     setToast({ msg, ok })
     setTimeout(() => setToast(null), 3000)
   }
 
+  // ── System team helper ───────────────────────────────────────────
   async function ensureSysTeam(name: string, groupId: string | null, divisionId: string | null): Promise<string | null> {
     if (sysTeamIdMap[name]) return sysTeamIdMap[name]
     const supabase = createClient()
@@ -159,39 +186,94 @@ export default function StagePage() {
     return null
   }
 
-  // Core assignment writer — used by both drag-drop and click-to-assign
+  // ── Structure creation ───────────────────────────────────────────
+  async function createGroup(name: string) {
+    if (!name.trim()) return
+    const supabase = createClient()
+    const { data, error } = await supabase.from('groups').insert({
+      operational_period_id: opId, name: name.trim(),
+    }).select().single()
+    if (error) { showToast(error.message, false); return }
+    setGroups(prev => [...prev, data])
+    setAddingGroupName(''); setShowAddGroup(false)
+    showToast(`Group "${data.name}" created`, true)
+  }
+
+  async function createTeam(name: string, groupId: string) {
+    if (!name.trim()) return
+    const supabase = createClient()
+    const { data, error } = await supabase.from('teams').insert({
+      operational_period_id: opId, group_id: groupId, name: name.trim(),
+    }).select().single()
+    if (error) { showToast(error.message, false); return }
+    setTeams(prev => [...prev, data])
+    setAddingTeamName(''); setAddingTeamToGroup(null)
+    showToast(`Team "${data.name}" created`, true)
+  }
+
+  async function createUnit(name: string, type: 'division' | 'branch') {
+    if (!name.trim()) return
+    const supabase = createClient()
+    const { data, error } = await supabase.from('divisions').insert({
+      operational_period_id: opId, name: name.trim(), type,
+    }).select().single()
+    if (error) { showToast(error.message, false); return }
+    setDivisions(prev => [...prev, data])
+    setAddingUnitName(''); setShowAddUnit(null)
+    showToast(`${type === 'branch' ? 'Branch' : 'Division'} "${data.name}" created`, true)
+  }
+
+  async function addAgencyRep(name: string, agency: string) {
+    if (!name.trim()) return
+    const supabase = createClient()
+    const { data, error } = await supabase.from('agency_reps').insert({
+      operational_period_id: opId,
+      name: name.trim(),
+      agency: agency.trim() || null,
+    }).select().single()
+    if (error) { showToast(error.message, false); return }
+    setAgencyReps(prev => [...prev, data])
+    setAddingRepName(''); setAddingRepAgency(''); setShowAddRep(false)
+    showToast(`${data.name} added as Agency Rep`, true)
+  }
+
+  async function removeAgencyRep(id: string) {
+    const supabase = createClient()
+    const { error } = await supabase.from('agency_reps').delete().eq('id', id)
+    if (error) { showToast(error.message, false); return }
+    setAgencyReps(prev => prev.filter(r => r.id !== id))
+  }
+
+  async function moveGroupToDiv(groupId: string, divisionId: string) {
+    const supabase = createClient()
+    const { error } = await supabase.from('groups').update({ division_id: divisionId }).eq('id', groupId)
+    if (error) { showToast(error.message, false); return }
+    setGroups(prev => prev.map(g => g.id === groupId ? { ...g, division_id: divisionId } : g))
+    showToast('Group moved', true)
+  }
+
+  // ── Assignment write / reassign / remove ─────────────────────────
   async function createAssignment(profileId: string, teamId: string, position: string): Promise<boolean> {
     const p = profileMap[profileId]
     if (!p) return false
-
     if (assignedUserIds.has(profileId)) {
-      showToast(`${p.full_name} is already assigned. Use ⇄ Reassign to move them.`, false)
-      return false
+      showToast(`${p.full_name} is already assigned.`, false); return false
     }
-
     if (UNIQUE_POSITIONS.has(position)) {
       const conflict = (assignmentsByTeamId[teamId] ?? []).find((a: any) => a.ics_position === position)
       if (conflict) {
-        const who = profileMap[conflict.user_id]?.full_name ?? 'Someone'
-        showToast(`${who} already holds ${getPositionLabel(position)}.`, false)
+        showToast(`${profileMap[conflict.user_id]?.full_name ?? 'Someone'} already holds ${getPositionLabel(position)}.`, false)
         return false
       }
     }
-
     setSaving(true)
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     const { data, error } = await supabase.from('assignments').insert({
-      operational_period_id: opId,
-      team_id: teamId,
-      user_id: profileId,
-      ics_position: position,
-      home_agency: p.default_agency ?? '',
-      home_unit: p.default_unit ?? null,
-      assigned_by: user!.id,
-      dual_hatted: false,
+      operational_period_id: opId, team_id: teamId, user_id: profileId,
+      ics_position: position, home_agency: p.default_agency ?? '',
+      home_unit: p.default_unit ?? null, assigned_by: user!.id, dual_hatted: false,
     }).select().single()
-
     setSaving(false)
     if (error) { showToast(error.message, false); return false }
     setAssignments(prev => [...prev, data])
@@ -199,39 +281,108 @@ export default function StagePage() {
     return true
   }
 
-  // ── DnD ───────────────────────────────────────────────────────
-  function dragStart(profileId: string, e: React.DragEvent) {
+  async function reassignTo(assignmentId: string, newTeamId: string, newPosition: string): Promise<boolean> {
+    const assignment = assignments.find((a: any) => a.id === assignmentId)
+    if (!assignment) return false
+    if (assignment.team_id === newTeamId && assignment.ics_position === newPosition) return true
+    if (UNIQUE_POSITIONS.has(newPosition)) {
+      const conflict = (assignmentsByTeamId[newTeamId] ?? []).find(
+        (a: any) => a.ics_position === newPosition && a.id !== assignmentId
+      )
+      if (conflict) {
+        showToast(`${profileMap[conflict.user_id]?.full_name ?? 'Someone'} already holds ${getPositionLabel(newPosition)}.`, false)
+        return false
+      }
+    }
+    setSaving(true)
+    const supabase = createClient()
+    const { error } = await supabase.from('assignments')
+      .update({ team_id: newTeamId, ics_position: newPosition }).eq('id', assignmentId)
+    setSaving(false)
+    if (error) { showToast(error.message, false); return false }
+    const p = profileMap[assignment.user_id]
+    setAssignments(prev => prev.map(a =>
+      a.id === assignmentId ? { ...a, team_id: newTeamId, ics_position: newPosition } : a
+    ))
+    showToast(`${p?.full_name ?? 'Person'} → ${getPositionLabel(newPosition)}`, true)
+    return true
+  }
+
+  async function removeAssignment(assignmentId: string) {
+    const assignment = assignments.find((a: any) => a.id === assignmentId)
+    if (!assignment) return
+    const p = profileMap[assignment.user_id]
+    setSaving(true)
+    const supabase = createClient()
+    const { error } = await supabase.from('assignments').delete().eq('id', assignmentId)
+    setSaving(false)
+    if (error) { showToast(error.message, false); return }
+    setAssignments(prev => prev.filter(a => a.id !== assignmentId))
+    showToast(`${p?.full_name ?? 'Person'} returned to staging`, true)
+  }
+
+  // ── DnD helpers ──────────────────────────────────────────────────
+  function dragStartProfile(profileId: string, e: React.DragEvent) {
     setDraggingProfileId(profileId)
-    e.dataTransfer.effectAllowed = 'copy'
+    e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('profile-id', profileId)
   }
 
-  function dragEnd() { setDraggingProfileId(null); setDragOverKey(null) }
+  function dragStartAssignment(assignmentId: string, e: React.DragEvent) {
+    setDraggingAssignmentId(assignmentId)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('assignment-id', assignmentId)
+  }
+
+  function dragEnd() {
+    setDraggingProfileId(null); setDraggingAssignmentId(null)
+    setDraggingGroupId(null); setDragOverKey(null); setDragOverDivId(null)
+  }
 
   function dragOverProps(key: string) {
     return {
-      onDragOver:  (e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setDragOverKey(key) },
+      onDragOver:  (e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverKey(key) },
       onDragLeave: (e: React.DragEvent) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverKey(null) },
     }
   }
 
-  async function handleDrop(e: React.DragEvent, teamId: string, position: string) {
+  // Unified drop: handles both profile→slot and assignment→slot.
+  // dataTransfer data MUST be read synchronously before any await — the browser
+  // clears it after the event handler yields. dragEnd() is called synchronously
+  // too so drag state is never left set if the source element is removed from
+  // the DOM (which prevents onDragEnd from firing on the source).
+  async function performDrop(e: React.DragEvent, teamId: string, position: string) {
     e.preventDefault()
-    const profileId = e.dataTransfer.getData('profile-id')
-    setDragOverKey(null)
-    if (profileId) await createAssignment(profileId, teamId, position)
+    const aid = e.dataTransfer.getData('assignment-id')
+    const pid = e.dataTransfer.getData('profile-id')
+    dragEnd()
+    if (aid) { await reassignTo(aid, teamId, position); return }
+    if (pid) await createAssignment(pid, teamId, position)
   }
 
-  async function handleDropSys(e: React.DragEvent, sysKey: string, position: string, groupId: string | null, divId: string | null) {
+  async function performDropSys(e: React.DragEvent, sysKey: string, position: string, groupId: string | null, divId: string | null) {
     e.preventDefault()
-    const profileId = e.dataTransfer.getData('profile-id')
-    setDragOverKey(null)
-    if (!profileId) return
-    const teamId = await ensureSysTeam(sysKey, groupId, divId)
-    if (teamId) await createAssignment(profileId, teamId, position)
+    const aid = e.dataTransfer.getData('assignment-id')
+    const pid = e.dataTransfer.getData('profile-id')
+    dragEnd()
+    if (aid) {
+      const tid = await ensureSysTeam(sysKey, groupId, divId)
+      if (tid) await reassignTo(aid, tid, position)
+      return
+    }
+    if (!pid) return
+    const tid = await ensureSysTeam(sysKey, groupId, divId)
+    if (tid) await createAssignment(pid, tid, position)
   }
 
-  // ── Click-to-assign ───────────────────────────────────────────
+  async function performDropToStaging(e: React.DragEvent) {
+    e.preventDefault()
+    const aid = e.dataTransfer.getData('assignment-id')
+    dragEnd()
+    if (aid) await removeAssignment(aid)
+  }
+
+  // ── Click-to-assign ───────────────────────────────────────────────
   function openAssign(p: any) {
     setAssigningProfile(p)
     setCaSection('command'); setCaTeamId(''); setCaPosition(''); setCaError(null)
@@ -241,10 +392,7 @@ export default function StagePage() {
   async function performClickAssign() {
     if (!assigningProfile || !caPosition) { setCaError('Select a position'); return }
     if (caSection === 'operations' && !caTeamId) { setCaError('Select a team'); return }
-
     setCaSaving(true); setCaError(null)
-    const supabase = createClient()
-
     let teamId: string
     if (caSection === 'operations') {
       teamId = caTeamId
@@ -257,46 +405,63 @@ export default function StagePage() {
       if (!id) { setCaError('Failed to resolve section team'); setCaSaving(false); return }
       teamId = id
     }
-
     const ok = await createAssignment(assigningProfile.id, teamId, caPosition)
     setCaSaving(false)
     if (ok) setAssigningProfile(null)
     else setCaError('Assignment failed — see notification')
   }
 
-  // ── Sub-components ────────────────────────────────────────────
+  // ── InlineAdd ────────────────────────────────────────────────────
+  function InlineAdd({ placeholder, value, onChange, onSubmit, onCancel, label }: {
+    placeholder: string; value: string; onChange: (v: string) => void
+    onSubmit: () => void; onCancel: () => void; label: string
+  }) {
+    return (
+      <div className="flex items-center gap-2 mt-2">
+        <input
+          autoFocus
+          type="text"
+          className="flex-1 bg-[#121821] border border-[#FF5A1F]/40 text-[#E5E7EB] placeholder-[#374151] rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#FF5A1F]"
+          placeholder={placeholder}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') onSubmit(); if (e.key === 'Escape') onCancel() }}
+        />
+        <button onClick={onSubmit}
+          className="text-xs bg-[#FF5A1F] text-white px-3 py-1.5 rounded-lg font-medium hover:bg-[#FF6A33] transition-colors flex-shrink-0">
+          {label}
+        </button>
+        <button onClick={onCancel}
+          className="text-xs text-[#6B7280] hover:text-[#E5E7EB] px-2 py-1.5 transition-colors flex-shrink-0">
+          ✕
+        </button>
+      </div>
+    )
+  }
 
-  // Empty slot — droppable, with "Assign" button fallback
-  function EmptySlot({
-    label, dropKey, onDrop, onClickAssign,
-  }: { label: string; dropKey: string; onDrop: (e: React.DragEvent) => void; onClickAssign: () => void }) {
+  // ── Sub-components ───────────────────────────────────────────────
+
+  function EmptySlot({ label, dropKey, onDrop, onClickAssign }: {
+    label: string; dropKey: string; onDrop: (e: React.DragEvent) => void; onClickAssign: () => void
+  }) {
     const isOver = dragOverKey === dropKey
     return (
       <div
         className={`flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed transition-colors ${
-          isOver
-            ? 'border-[#FF5A1F] bg-[#FF5A1F]/10'
-            : draggingProfileId
-            ? 'border-[#374151] bg-[#0f1419]'
-            : 'border-[#1f2937]'
+          isOver ? 'border-[#FF5A1F] bg-[#FF5A1F]/10' : isDragging ? 'border-[#374151] bg-[#0f1419]' : 'border-[#1f2937]'
         }`}
         {...dragOverProps(dropKey)}
         onDrop={onDrop}
       >
         <div className="w-6 h-6 rounded-full bg-[#1a2235] border border-dashed border-[#232B36] flex items-center justify-center flex-shrink-0">
-          {isOver
-            ? <span className="text-[#FF5A1F] text-xs">↓</span>
-            : <span className="text-[#374151] text-xs">+</span>
-          }
+          <span className={`text-xs ${isOver ? 'text-[#FF5A1F]' : 'text-[#374151]'}`}>{isOver ? '↓' : '+'}</span>
         </div>
         <span className={`text-xs flex-1 ${isOver ? 'text-[#FF5A1F]' : 'text-[#374151]'}`}>
           {isOver ? `Drop to assign as ${label}` : label}
         </span>
-        {!draggingProfileId && (
-          <button
-            onClick={onClickAssign}
-            className="text-[10px] text-[#374151] hover:text-[#FF5A1F] transition-colors font-mono px-1.5 py-0.5 rounded hover:bg-[#FF5A1F]/10"
-          >
+        {!isDragging && (
+          <button onClick={onClickAssign}
+            className="text-[10px] text-[#374151] hover:text-[#FF5A1F] transition-colors font-mono px-1.5 py-0.5 rounded hover:bg-[#FF5A1F]/10">
             Assign
           </button>
         )}
@@ -304,11 +469,20 @@ export default function StagePage() {
     )
   }
 
-  // Filled slot
   function FilledSlot({ label, assignment }: { label: string; assignment: any }) {
     const p = profileMap[assignment.user_id]
+    const isBeingDragged = draggingAssignmentId === assignment.id
     return (
-      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#121821] border border-[#232B36]">
+      <div
+        draggable
+        onDragStart={e => dragStartAssignment(assignment.id, e)}
+        onDragEnd={dragEnd}
+        className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors cursor-grab active:cursor-grabbing select-none ${
+          isBeingDragged
+            ? 'opacity-40 border-[#FF5A1F]/40 bg-[#FF5A1F]/5'
+            : 'bg-[#121821] border-[#232B36] hover:border-[#3a4555]'
+        }`}
+      >
         <div className="w-6 h-6 rounded-full bg-[#1a2235] border border-[#232B36] flex items-center justify-center text-[10px] font-mono text-[#9CA3AF] flex-shrink-0">
           {getInitials(p?.full_name ?? '?')}
         </div>
@@ -319,23 +493,26 @@ export default function StagePage() {
         {assignment.dual_hatted && (
           <span className="text-[9px] font-bold text-[#F59E0B] bg-[#F59E0B]/10 px-1 py-px rounded font-mono flex-shrink-0">DH</span>
         )}
+        <button
+          onClick={e => { e.stopPropagation(); removeAssignment(assignment.id) }}
+          className="text-[#374151] hover:text-red-400 transition-colors text-sm w-5 h-5 flex items-center justify-center rounded hover:bg-red-500/10 flex-shrink-0"
+          title="Return to staging"
+        >×</button>
       </div>
     )
   }
 
-  // Team block with leader + member drop zone
   function TeamBlock({ team, indent = false }: { team: any; indent?: boolean }) {
     const leaderAssignment = (assignmentsByTeamId[team.id] ?? []).find((a: any) => a.ics_position === 'team_leader') ?? null
     const members = (assignmentsByTeamId[team.id] ?? []).filter((a: any) => a.ics_position !== 'team_leader')
     const memberDropKey = `member:${team.id}`
-    const memberIsOver = dragOverKey === memberDropKey
-
+    const memberIsOver  = dragOverKey === memberDropKey
     return (
       <div className={`rounded-lg border border-[#232B36] overflow-hidden ${indent ? 'ml-4' : ''}`}>
         <div className="px-3 py-1.5 bg-[#1a2235]/60 flex items-center gap-2">
           <span className="text-[10px] font-mono text-[#4B5563] uppercase">Team</span>
           <span className="text-xs font-semibold text-[#9CA3AF] flex-1">{team.name}</span>
-          <span className="text-[10px] font-mono text-[#374151]">{members.length} member{members.length !== 1 ? 's' : ''}</span>
+          <span className="text-[10px] font-mono text-[#374151]">{members.length}m</span>
         </div>
         <div className="px-3 py-2 space-y-1.5 bg-[#0f1419]/40">
           {leaderAssignment
@@ -343,39 +520,29 @@ export default function StagePage() {
             : <EmptySlot
                 label="Team Leader"
                 dropKey={`leader:${team.id}`}
-                onDrop={e => handleDrop(e, team.id, 'team_leader')}
+                onDrop={e => performDrop(e, team.id, 'team_leader')}
                 onClickAssign={() => { openAssign(null); setCaSection('operations'); setCaTeamId(team.id); setCaPosition('team_leader') }}
               />
           }
-
           {members.length > 0 && (
             <div className="space-y-1 pt-1 border-t border-[#1f2937]/60">
-              {members.map((m: any) => (
-                <FilledSlot key={m.id} label={getPositionLabel(m.ics_position)} assignment={m} />
-              ))}
+              {members.map((m: any) => <FilledSlot key={m.id} label={getPositionLabel(m.ics_position)} assignment={m} />)}
             </div>
           )}
-
-          {/* Member drop zone */}
           <div
             className={`flex items-center gap-2 px-2 py-1.5 rounded border border-dashed transition-colors mt-1 ${
-              memberIsOver
-                ? 'border-[#38BDF8] bg-[#38BDF8]/10'
-                : draggingProfileId
-                ? 'border-[#1f2937] bg-[#0f1419]'
-                : 'border-[#1a2235]'
+              memberIsOver ? 'border-[#38BDF8] bg-[#38BDF8]/10' : isDragging ? 'border-[#1f2937]' : 'border-[#1a2235]'
             }`}
             {...dragOverProps(memberDropKey)}
-            onDrop={e => handleDrop(e, team.id, 'team_member')}
+            onDrop={e => performDrop(e, team.id, 'team_member')}
           >
             <span className={`text-[10px] flex-1 font-mono ${memberIsOver ? 'text-[#38BDF8]' : 'text-[#1f2937]'}`}>
               {memberIsOver ? '↓ Drop to add member' : '+ members'}
             </span>
-            {!draggingProfileId && (
+            {!isDragging && (
               <button
                 onClick={() => { openAssign(null); setCaSection('operations'); setCaTeamId(team.id); setCaPosition('') }}
-                className="text-[10px] text-[#374151] hover:text-[#38BDF8] transition-colors font-mono"
-              >
+                className="text-[10px] text-[#374151] hover:text-[#38BDF8] transition-colors font-mono">
                 Add
               </button>
             )}
@@ -385,18 +552,22 @@ export default function StagePage() {
     )
   }
 
-  // Group block
   function GroupBlock({ group, indent = false }: { group: any; indent?: boolean }) {
     const sysKey = `__gr_${group.id}__`
     const sysTeamId = sysTeamIdMap[sysKey]
     const supervisorAssignment = sysTeamId ? (assignmentsByTeamId[sysTeamId] ?? [])[0] ?? null : null
-    const groupTeams = opsTeams.filter((t: any) => t.group_id === group.id)
-
+    const groupTeams  = opsTeams.filter((t: any) => t.group_id === group.id)
+    const isAddingTeam = addingTeamToGroup === group.id
     return (
       <div className={`rounded-xl border border-[#232B36] overflow-hidden ${indent ? 'ml-4' : ''}`}>
         <div className="px-3 py-2 bg-[#161D26] flex items-center gap-2">
           <span className="text-[10px] font-mono text-[#6B7280] uppercase tracking-wider">Group</span>
           <span className="text-sm font-semibold text-[#E5E7EB] flex-1">{group.name}</span>
+          <button
+            onClick={() => { setAddingTeamToGroup(isAddingTeam ? null : group.id); setAddingTeamName('') }}
+            className="text-[10px] text-[#374151] hover:text-[#FF5A1F] transition-colors font-mono px-1.5 py-0.5 rounded hover:bg-[#FF5A1F]/10">
+            + Team
+          </button>
         </div>
         <div className="px-3 py-2 space-y-2 bg-[#0f1419]/40">
           {supervisorAssignment
@@ -404,7 +575,7 @@ export default function StagePage() {
             : <EmptySlot
                 label="Group Supervisor"
                 dropKey={`grpsup:${group.id}`}
-                onDrop={e => handleDropSys(e, sysKey, 'group_supervisor', group.id, group.division_id ?? null)}
+                onDrop={e => performDropSys(e, sysKey, 'group_supervisor', group.id, group.division_id ?? null)}
                 onClickAssign={() => { openAssign(null); setCaSection('operations') }}
               />
           }
@@ -413,29 +584,51 @@ export default function StagePage() {
               {groupTeams.map((t: any) => <TeamBlock key={t.id} team={t} indent />)}
             </div>
           )}
+          {isAddingTeam && (
+            <InlineAdd
+              placeholder="Team name…"
+              value={addingTeamName}
+              onChange={setAddingTeamName}
+              onSubmit={() => createTeam(addingTeamName, group.id)}
+              onCancel={() => setAddingTeamToGroup(null)}
+              label="Add"
+            />
+          )}
         </div>
       </div>
     )
   }
 
-  // Branch / Division block
   function UnitBlock({ unit }: { unit: any }) {
     const isBranch = unit.type === 'branch'
-    const sysKey = isBranch ? `__br_${unit.id}__` : `__dv_${unit.id}__`
+    const sysKey   = isBranch ? `__br_${unit.id}__` : `__dv_${unit.id}__`
     const sysTeamId = sysTeamIdMap[sysKey]
     const leaderAssignment = sysTeamId ? (assignmentsByTeamId[sysTeamId] ?? [])[0] ?? null : null
-    const leaderRole = isBranch ? 'branch_director' : 'division_supervisor'
+    const leaderRole  = isBranch ? 'branch_director' : 'division_supervisor'
     const leaderLabel = isBranch ? 'Branch Director' : 'Division Supervisor'
     const childGroups = groups.filter((g: any) => g.division_id === unit.id)
     const directTeams = opsTeams.filter((t: any) => t.division_id === unit.id && !t.group_id)
-
+    const isGroupOver = dragOverDivId === unit.id
     return (
-      <div className={`rounded-xl border overflow-hidden ${isBranch ? 'border-orange-900/40' : 'border-sky-900/40'}`}>
+      <div
+        className={`rounded-xl border overflow-hidden transition-all ${
+          isBranch ? 'border-orange-900/40' : 'border-sky-900/40'
+        } ${isGroupOver ? 'ring-1 ring-[#FF5A1F]/50' : ''}`}
+        onDragOver={e => { e.preventDefault(); if (draggingGroupId) setDragOverDivId(unit.id) }}
+        onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverDivId(null) }}
+        onDrop={async e => {
+          e.preventDefault()
+          const gid = e.dataTransfer.getData('group-id')
+          dragEnd()
+          if (gid) await moveGroupToDiv(gid, unit.id)
+        }}
+      >
         <div className={`px-4 py-2.5 flex items-center gap-2 ${isBranch ? 'bg-orange-950/40' : 'bg-sky-950/40'}`}>
           <span className={`text-[10px] font-mono font-semibold uppercase tracking-wider ${isBranch ? 'text-orange-400' : 'text-sky-400'}`}>
             {isBranch ? 'Branch' : 'Division'}
           </span>
           <span className="text-sm font-bold text-[#E5E7EB] flex-1">{unit.name}</span>
+          {isGroupOver && <span className="text-[10px] text-[#FF5A1F] font-mono animate-pulse">Drop group here</span>}
         </div>
         <div className="px-4 py-3 space-y-2.5 bg-[#0f1419]/30">
           {leaderAssignment
@@ -443,18 +636,15 @@ export default function StagePage() {
             : <EmptySlot
                 label={leaderLabel}
                 dropKey={`unit-leader:${unit.id}`}
-                onDrop={e => handleDropSys(e, sysKey, leaderRole, null, unit.id)}
+                onDrop={e => performDropSys(e, sysKey, leaderRole, null, unit.id)}
                 onClickAssign={() => { openAssign(null); setCaSection('operations') }}
               />
           }
-          {childGroups.length > 0 && (
-            <div className="space-y-2">
-              {childGroups.map((g: any) => <GroupBlock key={g.id} group={g} indent />)}
-            </div>
-          )}
-          {directTeams.length > 0 && (
-            <div className="space-y-1.5">
-              {directTeams.map((t: any) => <TeamBlock key={t.id} team={t} indent />)}
+          {childGroups.map((g: any) => <GroupBlock key={g.id} group={g} indent />)}
+          {directTeams.map((t: any) => <TeamBlock key={t.id} team={t} indent />)}
+          {isGroupOver && childGroups.length === 0 && (
+            <div className="border border-dashed border-[#FF5A1F]/40 rounded-lg py-3 text-center text-[10px] text-[#FF5A1F] font-mono">
+              ↓ Drop group here
             </div>
           )}
         </div>
@@ -462,15 +652,13 @@ export default function StagePage() {
     )
   }
 
-  // Staff section block (Planning/Logistics/Finance)
   function StaffSection({ label, sysKey, positions, color }: {
     label: string; sysKey: string; positions: typeof PLANNING_POSITIONS; color: string
   }) {
-    const sysTeamId = sysTeamIdMap[sysKey]
-    const members = sysTeamId ? (assignmentsByTeamId[sysTeamId] ?? []) : []
-    const memberDropKey = `staffsec:${sysKey}`
-    const isOver = dragOverKey === memberDropKey
-
+    const sysTeamId  = sysTeamIdMap[sysKey]
+    const members    = sysTeamId ? (assignmentsByTeamId[sysTeamId] ?? []) : []
+    const dropKey    = `staffsec:${sysKey}`
+    const isOver     = dragOverKey === dropKey
     return (
       <div className="rounded-xl border border-[#232B36] overflow-hidden">
         <div className="px-4 py-2.5 bg-[#161D26] flex items-center gap-2">
@@ -479,48 +667,38 @@ export default function StagePage() {
           <span className="text-[10px] font-mono text-[#374151] ml-auto">{members.length} assigned</span>
         </div>
         <div className="px-4 py-3 space-y-1.5 bg-[#0f1419]/30">
-          {members.map((a: any) => (
-            <FilledSlot key={a.id} label={getPositionLabel(a.ics_position)} assignment={a} />
-          ))}
+          {members.map((a: any) => <FilledSlot key={a.id} label={getPositionLabel(a.ics_position)} assignment={a} />)}
           <div
             className={`flex items-center gap-2 px-2 py-2 rounded border border-dashed transition-colors ${
-              isOver
-                ? 'border-[#FF5A1F] bg-[#FF5A1F]/10'
-                : draggingProfileId
-                ? 'border-[#232B36]'
-                : 'border-[#1a2235]'
+              isOver ? 'border-[#FF5A1F] bg-[#FF5A1F]/10' : isDragging ? 'border-[#232B36]' : 'border-[#1a2235]'
             }`}
-            {...dragOverProps(memberDropKey)}
+            {...dragOverProps(dropKey)}
             onDrop={async e => {
               e.preventDefault()
-              const profileId = e.dataTransfer.getData('profile-id')
-              setDragOverKey(null)
-              if (!profileId) return
-              // Default to section chief position on drop — user can reassign
+              const aid = e.dataTransfer.getData('assignment-id')
+              const pid = e.dataTransfer.getData('profile-id')
+              dragEnd()
               const chief = positions[0]?.value ?? ''
               if (!chief) return
               const tid = await ensureSysTeam(sysKey, null, null)
-              if (tid) await createAssignment(profileId, tid, chief)
+              if (!tid) return
+              if (aid) { await reassignTo(aid, tid, chief); return }
+              if (pid) await createAssignment(pid, tid, chief)
             }}
           >
             <span className={`text-[10px] flex-1 font-mono ${isOver ? 'text-[#FF5A1F]' : 'text-[#1f2937]'}`}>
               {isOver ? '↓ Drop to add' : '+ add personnel'}
             </span>
-            {!draggingProfileId && (
+            {!isDragging && (
               <button
                 onClick={() => {
                   setAssigningProfile({ id: '__section__', full_name: '' })
                   const secKey = sysKey.replace(/__/g, '')
-                  const map: Record<string, string> = {
-                    planning: 'planning', logistics: 'logistics', finance: 'finance'
-                  }
+                  const map: Record<string, string> = { planning: 'planning', logistics: 'logistics', finance: 'finance' }
                   setCaSection(map[secKey] ?? 'planning')
-                  setCaTeamId(sysTeamId ?? '')
-                  setCaPosition('')
-                  setCaError(null)
+                  setCaTeamId(sysTeamId ?? ''); setCaPosition(''); setCaError(null)
                 }}
-                className="text-[10px] text-[#374151] hover:text-[#FF5A1F] transition-colors font-mono"
-              >
+                className="text-[10px] text-[#374151] hover:text-[#FF5A1F] transition-colors font-mono">
                 Assign
               </button>
             )}
@@ -530,17 +708,22 @@ export default function StagePage() {
     )
   }
 
-  // ── Loading ────────────────────────────────────────────────────
+  // ── Loading ───────────────────────────────────────────────────────
   if (loading) return (
     <div className="min-h-screen bg-[#0B0F14] flex items-center justify-center">
       <p className="text-[#6B7280] text-sm">Loading…</p>
     </div>
   )
 
-  const cmdTeamId = sysTeamIdMap['__command__']
+  const cmdTeamId      = sysTeamIdMap['__command__']
   const cmdAssignments = cmdTeamId ? (assignmentsByTeamId[cmdTeamId] ?? []) : []
+  const hasOpsStructure = branches.length > 0 || divs.length > 0 || unassignedGroups.length > 0
+  const hasDivUnits     = branches.length > 0 || divs.length > 0
 
-  // ── Staging panel content ──────────────────────────────────────
+  // ── Staging panel ─────────────────────────────────────────────────
+  const stagingDropKey = 'staging-pool'
+  const stagingIsOver  = dragOverKey === stagingDropKey
+
   const StagingContent = (
     <div className="flex flex-col h-full">
       <div className="px-3 pt-3 pb-2 border-b border-[#232B36]/60">
@@ -560,10 +743,26 @@ export default function StagePage() {
             <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
           </svg>
         </div>
+        {draggingAssignmentId && (
+          <p className="text-[10px] text-[#FF5A1F] font-mono mt-1.5 text-center animate-pulse">Drop here to unassign</p>
+        )}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
-        {staged.length === 0 && (
+      {/* Drop zone for returning assigned people */}
+      <div
+        className={`flex-1 overflow-y-auto p-2 space-y-1 transition-colors ${
+          stagingIsOver ? 'bg-[#FF5A1F]/5 ring-1 ring-inset ring-[#FF5A1F]/30 rounded-b-xl' : ''
+        }`}
+        onDragOver={e => { e.preventDefault(); if (draggingAssignmentId) { e.dataTransfer.dropEffect = 'move'; setDragOverKey(stagingDropKey) } }}
+        onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverKey(null) }}
+        onDrop={performDropToStaging}
+      >
+        {stagingIsOver && (
+          <div className="border border-dashed border-[#FF5A1F]/60 rounded-lg py-3 mb-2 text-center">
+            <p className="text-[10px] text-[#FF5A1F] font-mono">↓ Return to staging</p>
+          </div>
+        )}
+        {staged.length === 0 && !stagingIsOver && (
           <p className="text-[10px] text-[#374151] text-center py-6 font-mono">
             {stagingQuery ? 'No match' : 'All personnel assigned'}
           </p>
@@ -572,7 +771,7 @@ export default function StagePage() {
           <div
             key={p.id}
             draggable
-            onDragStart={e => dragStart(p.id, e)}
+            onDragStart={e => dragStartProfile(p.id, e)}
             onDragEnd={dragEnd}
             className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border cursor-grab active:cursor-grabbing transition-colors select-none ${
               draggingProfileId === p.id
@@ -585,17 +784,11 @@ export default function StagePage() {
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-[#E5E7EB] truncate">{p.full_name}</p>
-              <p className="text-[10px] text-[#4B5563] truncate leading-none mt-px">
-                {p.default_agency ?? p.role ?? '—'}
-              </p>
+              <p className="text-[10px] text-[#4B5563] truncate leading-none mt-px">{p.default_agency ?? p.role ?? '—'}</p>
             </div>
-            <button
-              onClick={() => openAssign(p)}
+            <button onClick={() => openAssign(p)}
               className="flex-shrink-0 text-[10px] text-[#374151] hover:text-[#FF5A1F] transition-colors font-mono px-1"
-              title="Assign"
-            >
-              →
-            </button>
+              title="Assign">→</button>
           </div>
         ))}
       </div>
@@ -617,7 +810,6 @@ export default function StagePage() {
             <span className="text-xs font-semibold text-[#E5E7EB]">Staff — OP {op?.period_number}</span>
             <span className="text-[10px] text-[#4B5563] ml-2 font-mono">Command OS</span>
           </div>
-          {/* Mobile staging toggle */}
           <button
             className="md:hidden flex items-center gap-1.5 text-xs text-[#FF5A1F] bg-[#FF5A1F]/10 px-2.5 py-1.5 rounded-lg font-medium"
             onClick={() => setMobileStagingOpen(v => !v)}
@@ -625,10 +817,6 @@ export default function StagePage() {
             Staging
             <span className="text-[10px] font-mono bg-[#FF5A1F] text-white px-1 rounded">{staged.length}</span>
           </button>
-          <Link href={`/events/${eventId}/op/${opId}/build`}
-            className="text-[10px] text-[#6B7280] hover:text-[#E5E7EB] transition-colors flex-shrink-0 font-mono">
-            Org Builder →
-          </Link>
         </div>
       </header>
 
@@ -649,12 +837,12 @@ export default function StagePage() {
       {/* Body */}
       <div className="flex flex-1 max-w-5xl mx-auto w-full">
 
-        {/* Staging sidebar — desktop only */}
+        {/* Staging sidebar — desktop */}
         <aside className="hidden md:flex flex-col w-60 border-r border-[#232B36]/60 sticky top-[92px] h-[calc(100vh-92px)]">
           {StagingContent}
         </aside>
 
-        {/* Org structure */}
+        {/* Org canvas */}
         <main className="flex-1 overflow-y-auto px-4 py-5 space-y-4 pb-24">
 
           {saving && (
@@ -662,48 +850,256 @@ export default function StagePage() {
           )}
 
           {/* Command */}
-          {COMMAND_SLOTS.length > 0 && (
-            <div className="rounded-xl border border-[#232B36] overflow-hidden">
-              <div className="px-4 py-2.5 bg-[#161D26]">
-                <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-widest">Command</p>
-              </div>
-              <div className="px-4 py-3 grid grid-cols-1 sm:grid-cols-2 gap-2 bg-[#0f1419]/30">
-                {COMMAND_SLOTS.map(slot => {
-                  const filled = cmdAssignments.find((a: any) => a.ics_position === slot.position)
-                  return filled
-                    ? <FilledSlot key={slot.position} label={slot.label} assignment={filled} />
-                    : <EmptySlot
-                        key={slot.position}
-                        label={slot.label}
-                        dropKey={`cmd:${slot.position}`}
-                        onDrop={async e => {
-                          e.preventDefault()
-                          const profileId = e.dataTransfer.getData('profile-id')
-                          setDragOverKey(null)
-                          if (!profileId) return
-                          const tid = await ensureSysTeam('__command__', null, null)
-                          if (tid) await createAssignment(profileId, tid, slot.position)
-                        }}
-                        onClickAssign={() => {
-                          setAssigningProfile({ id: '__cmd__', full_name: '' })
-                          setCaSection('command'); setCaTeamId(cmdTeamId ?? ''); setCaPosition(slot.position); setCaError(null)
-                        }}
-                      />
-                })}
-              </div>
+          <div className="rounded-xl border border-[#232B36] overflow-hidden">
+            <div className="px-4 py-2.5 bg-[#161D26]">
+              <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-widest">Command</p>
             </div>
-          )}
+            <div className="px-4 py-3 grid grid-cols-1 sm:grid-cols-2 gap-2 bg-[#0f1419]/30">
+              {COMMAND_SLOTS.map(slot => {
+                const filled = cmdAssignments.find((a: any) => a.ics_position === slot.position)
+                return filled
+                  ? <FilledSlot key={slot.position} label={slot.label} assignment={filled} />
+                  : <EmptySlot
+                      key={slot.position}
+                      label={slot.label}
+                      dropKey={`cmd:${slot.position}`}
+                      onDrop={async e => {
+                        e.preventDefault()
+                        const aid = e.dataTransfer.getData('assignment-id')
+                        const pid = e.dataTransfer.getData('profile-id')
+                        dragEnd()
+                        const tid = await ensureSysTeam('__command__', null, null)
+                        if (!tid) return
+                        if (aid) { await reassignTo(aid, tid, slot.position); return }
+                        if (pid) await createAssignment(pid, tid, slot.position)
+                      }}
+                      onClickAssign={() => {
+                        setAssigningProfile({ id: '__cmd__', full_name: '' })
+                        setCaSection('command'); setCaTeamId(cmdTeamId ?? ''); setCaPosition(slot.position); setCaError(null)
+                      }}
+                    />
+              })}
+            </div>
+
+            {/* Agency Representatives */}
+            {(() => {
+              const repDropKey = 'agency-reps-drop'
+              const repIsOver  = dragOverKey === repDropKey
+              const totalReps  = agencyRepAssignments.length + agencyReps.length
+              return (
+                <div className="px-4 py-3 border-t border-[#232B36]/50 bg-[#0a0e14]/40">
+                  <div className="flex items-center gap-2 mb-2.5">
+                    <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-widest">
+                      Agency Representatives
+                    </span>
+                    {totalReps > 0 && (
+                      <span className="text-[10px] font-mono text-[#374151]">{totalReps}</span>
+                    )}
+                  </div>
+
+                  {/* Profile-based reps dragged from staging */}
+                  {agencyRepAssignments.length > 0 && (
+                    <div className="space-y-1 mb-2">
+                      {agencyRepAssignments.map((a: any) => {
+                        const p = profileMap[a.user_id]
+                        return (
+                          <FilledSlot
+                            key={a.id}
+                            label={p?.default_agency ?? 'Agency Representative'}
+                            assignment={a}
+                          />
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {/* Manual / external reps */}
+                  {agencyReps.length > 0 && (
+                    <div className="space-y-1 mb-2">
+                      {agencyReps.map((r: any) => (
+                        <div key={r.id}
+                          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#121821] border border-[#232B36]">
+                          <div className="w-6 h-6 rounded-full bg-[#1a2235] border border-[#232B36] flex items-center justify-center text-[10px] font-mono text-[#6B7280] flex-shrink-0 select-none">
+                            {r.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium text-[#E5E7EB] truncate">{r.name}</p>
+                            {r.agency && (
+                              <p className="text-[10px] text-[#4B5563] leading-none mt-px truncate">{r.agency}</p>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => removeAgencyRep(r.id)}
+                            className="text-[#374151] hover:text-red-400 transition-colors text-sm w-5 h-5 flex items-center justify-center rounded hover:bg-red-500/10 flex-shrink-0"
+                            title="Remove">×</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Drop zone for staging drags */}
+                  <div
+                    className={`flex items-center gap-2 px-2 py-2 rounded-lg border border-dashed transition-colors ${
+                      repIsOver
+                        ? 'border-[#FF5A1F] bg-[#FF5A1F]/10'
+                        : isDragging
+                        ? 'border-[#374151] bg-[#0f1419]'
+                        : 'border-[#1a2235]'
+                    }`}
+                    onDragOver={e => { e.preventDefault(); if (draggingProfileId || draggingAssignmentId) { e.dataTransfer.dropEffect = 'move'; setDragOverKey(repDropKey) } }}
+                    onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverKey(null) }}
+                    onDrop={async e => {
+                      e.preventDefault()
+                      const aid = e.dataTransfer.getData('assignment-id')
+                      const pid = e.dataTransfer.getData('profile-id')
+                      dragEnd()
+                      const tid = await ensureSysTeam('__command__', null, null)
+                      if (!tid) return
+                      if (aid) { await reassignTo(aid, tid, 'agency_representative'); return }
+                      if (pid) await createAssignment(pid, tid, 'agency_representative')
+                    }}
+                  >
+                    <span className={`text-[10px] flex-1 font-mono ${repIsOver ? 'text-[#FF5A1F]' : 'text-[#1f2937]'}`}>
+                      {repIsOver ? '↓ Drop to add as Agency Rep' : '+ drag person here'}
+                    </span>
+                    {!isDragging && (
+                      <button
+                        onClick={() => { setShowAddRep(v => !v); setAddingRepName(''); setAddingRepAgency('') }}
+                        className="text-[10px] text-[#374151] hover:text-[#FF5A1F] transition-colors font-mono px-1.5 py-0.5 rounded hover:bg-[#FF5A1F]/10 flex-shrink-0"
+                      >
+                        + Add manually
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Manual add form */}
+                  {showAddRep && (
+                    <div className="mt-2 space-y-1.5">
+                      <input
+                        autoFocus
+                        type="text"
+                        className="w-full bg-[#121821] border border-[#FF5A1F]/30 text-[#E5E7EB] placeholder-[#374151] rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#FF5A1F]/60"
+                        placeholder="Name (e.g. John Smith)"
+                        value={addingRepName}
+                        onChange={e => setAddingRepName(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') addAgencyRep(addingRepName, addingRepAgency); if (e.key === 'Escape') setShowAddRep(false) }}
+                      />
+                      <input
+                        type="text"
+                        className="w-full bg-[#121821] border border-[#232B36] text-[#E5E7EB] placeholder-[#374151] rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#FF5A1F]/40"
+                        placeholder="Agency (e.g. DTE Energy)"
+                        value={addingRepAgency}
+                        onChange={e => setAddingRepAgency(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') addAgencyRep(addingRepName, addingRepAgency); if (e.key === 'Escape') setShowAddRep(false) }}
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => addAgencyRep(addingRepName, addingRepAgency)}
+                          disabled={!addingRepName.trim()}
+                          className="flex-1 bg-[#FF5A1F] hover:bg-[#FF6A33] disabled:opacity-40 text-white rounded-lg py-1.5 text-xs font-semibold transition-colors"
+                        >
+                          Add Rep
+                        </button>
+                        <button
+                          onClick={() => setShowAddRep(false)}
+                          className="px-3 bg-[#121821] border border-[#232B36] text-[#6B7280] hover:text-[#E5E7EB] rounded-lg py-1.5 text-xs transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+          </div>
 
           {/* Operations */}
-          {(branches.length > 0 || divs.length > 0 || unassignedGroups.length > 0 || unassignedTeams.length > 0) && (
-            <div className="space-y-3">
-              <p className="text-[10px] font-mono text-[#4B5563] uppercase tracking-widest px-1">Operations</p>
-              {branches.map((b: any) => <UnitBlock key={b.id} unit={b} />)}
-              {divs.map((d: any) => <UnitBlock key={d.id} unit={d} />)}
-              {unassignedGroups.map((g: any) => <GroupBlock key={g.id} group={g} />)}
-              {unassignedTeams.map((t: any) => <TeamBlock key={t.id} team={t} />)}
+          <div className="space-y-3">
+            <div className="flex items-center gap-1.5 px-1">
+              <p className="text-[10px] font-mono text-[#4B5563] uppercase tracking-widest flex-1">Operations</p>
+              {hasOpsStructure && (
+                <>
+                  <button onClick={() => { setShowAddUnit('division'); setAddingUnitName('') }}
+                    className="text-[10px] text-[#374151] hover:text-[#38BDF8] font-mono px-1.5 py-0.5 rounded hover:bg-[#38BDF8]/10 transition-colors">
+                    + Division
+                  </button>
+                  <button onClick={() => { setShowAddUnit('branch'); setAddingUnitName('') }}
+                    className="text-[10px] text-[#374151] hover:text-[#F97316] font-mono px-1.5 py-0.5 rounded hover:bg-[#F97316]/10 transition-colors">
+                    + Branch
+                  </button>
+                </>
+              )}
+              <button onClick={() => { setShowAddGroup(true); setAddingGroupName('') }}
+                className="text-[10px] text-[#374151] hover:text-[#FF5A1F] font-mono px-1.5 py-0.5 rounded hover:bg-[#FF5A1F]/10 transition-colors">
+                + Group
+              </button>
             </div>
-          )}
+
+            {showAddUnit && (
+              <InlineAdd
+                placeholder={`${showAddUnit === 'branch' ? 'Branch' : 'Division'} name…`}
+                value={addingUnitName}
+                onChange={setAddingUnitName}
+                onSubmit={() => createUnit(addingUnitName, showAddUnit)}
+                onCancel={() => setShowAddUnit(null)}
+                label="Create"
+              />
+            )}
+
+            {showAddGroup && (
+              <InlineAdd
+                placeholder="Group name (e.g. Search Group)…"
+                value={addingGroupName}
+                onChange={setAddingGroupName}
+                onSubmit={() => createGroup(addingGroupName)}
+                onCancel={() => setShowAddGroup(false)}
+                label="Create"
+              />
+            )}
+
+            {/* Empty state */}
+            {!hasOpsStructure && !showAddGroup && (
+              <div className="rounded-xl border border-dashed border-[#232B36] py-8 px-4 text-center space-y-3">
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-[#9CA3AF]">No operations structure yet</p>
+                  <p className="text-xs text-[#4B5563]">Start by creating a Group. Teams live inside Groups.</p>
+                </div>
+                <button
+                  onClick={() => { setShowAddGroup(true); setAddingGroupName('') }}
+                  className="inline-flex items-center gap-1.5 bg-[#FF5A1F] text-white text-xs font-semibold px-4 py-2 rounded-xl hover:bg-[#FF6A33] transition-colors"
+                >
+                  <span className="text-base leading-none">+</span> Add Group
+                </button>
+                <p className="text-[10px] text-[#374151] font-mono">Divisions and Branches can be added after groups exist</p>
+              </div>
+            )}
+
+            {branches.map((b: any) => <UnitBlock key={b.id} unit={b} />)}
+            {divs.map((d: any) => <UnitBlock key={d.id} unit={d} />)}
+
+            {unassignedGroups.map((g: any) => (
+              <div
+                key={g.id}
+                draggable={hasDivUnits}
+                onDragStart={e => {
+                  if (!hasDivUnits) return
+                  setDraggingGroupId(g.id)
+                  e.dataTransfer.effectAllowed = 'move'
+                  e.dataTransfer.setData('group-id', g.id)
+                }}
+                onDragEnd={dragEnd}
+              >
+                <GroupBlock group={g} />
+              </div>
+            ))}
+
+            {hasDivUnits && unassignedGroups.length > 0 && (
+              <p className="text-[10px] text-[#374151] font-mono px-1">
+                Drag a group into a Branch or Division to nest it
+              </p>
+            )}
+          </div>
 
           {/* Staff sections */}
           {SECTION_DEFS.map(sec => (
@@ -716,16 +1112,6 @@ export default function StagePage() {
             />
           ))}
 
-          {/* Empty state */}
-          {branches.length === 0 && divs.length === 0 && unassignedGroups.length === 0 && unassignedTeams.length === 0 && (
-            <div className="text-center py-12 border border-[#232B36] border-dashed rounded-2xl">
-              <p className="text-[#4B5563] text-sm">No org structure yet.</p>
-              <Link href={`/events/${eventId}/op/${opId}/build`}
-                className="text-xs text-[#FF5A1F] hover:text-[#FF6A33] mt-2 inline-block">
-                Build org structure →
-              </Link>
-            </div>
-          )}
         </main>
       </div>
 
@@ -735,10 +1121,8 @@ export default function StagePage() {
           className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
           onClick={() => setAssigningProfile(null)}
         >
-          <div
-            className="bg-[#161D26] border border-[#232B36] rounded-2xl w-full max-w-sm p-5 space-y-4"
-            onClick={e => e.stopPropagation()}
-          >
+          <div className="bg-[#161D26] border border-[#232B36] rounded-2xl w-full max-w-sm p-5 space-y-4"
+            onClick={e => e.stopPropagation()}>
             <div>
               <p className="text-xs text-[#6B7280] font-mono uppercase tracking-wider">Assign from Staging</p>
               {assigningProfile.full_name && (
@@ -746,27 +1130,22 @@ export default function StagePage() {
               )}
             </div>
 
-            {/* Person picker (if opened without a pre-selected person) */}
             {!assigningProfile.full_name && (
               <div>
                 <p className="text-xs text-[#6B7280] mb-1.5">Person</p>
                 <select
                   className="w-full bg-[#121821] border border-[#232B36] text-[#E5E7EB] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FF5A1F]/50"
-                  value={assigningProfile.id === '__cmd__' || assigningProfile.id === '__section__' ? '' : assigningProfile.id}
-                  onChange={e => {
-                    const p = profiles.find((x: any) => x.id === e.target.value)
-                    if (p) setAssigningProfile(p)
-                  }}
+                  value={['__cmd__','__section__'].includes(assigningProfile.id) ? '' : assigningProfile.id}
+                  onChange={e => { const p = profiles.find((x: any) => x.id === e.target.value); if (p) setAssigningProfile(p) }}
                 >
                   <option value="">Select person…</option>
                   {staged.map((p: any) => (
-                    <option key={p.id} value={p.id}>{p.full_name} {p.default_agency ? `(${p.default_agency})` : ''}</option>
+                    <option key={p.id} value={p.id}>{p.full_name}{p.default_agency ? ` (${p.default_agency})` : ''}</option>
                   ))}
                 </select>
               </div>
             )}
 
-            {/* Section */}
             <div>
               <p className="text-xs text-[#6B7280] mb-1.5">Section</p>
               <div className="grid grid-cols-3 gap-1.5">
@@ -774,9 +1153,7 @@ export default function StagePage() {
                   <button key={s}
                     onClick={() => { setCaSection(s); setCaTeamId(''); setCaPosition('') }}
                     className={`px-2 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${
-                      caSection === s
-                        ? 'bg-[#FF5A1F] text-white'
-                        : 'bg-[#121821] border border-[#232B36] text-[#6B7280] hover:text-[#E5E7EB]'
+                      caSection === s ? 'bg-[#FF5A1F] text-white' : 'bg-[#121821] border border-[#232B36] text-[#6B7280] hover:text-[#E5E7EB]'
                     }`}>
                     {s}
                   </button>
@@ -784,7 +1161,6 @@ export default function StagePage() {
               </div>
             </div>
 
-            {/* Team (ops only) */}
             {caSection === 'operations' && (
               <div>
                 <p className="text-xs text-[#6B7280] mb-1.5">Team</p>
@@ -794,14 +1170,11 @@ export default function StagePage() {
                   className="w-full bg-[#121821] border border-[#232B36] text-[#E5E7EB] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FF5A1F]/50"
                 >
                   <option value="">Select team…</option>
-                  {opsTeams.map((t: any) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
+                  {opsTeams.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
               </div>
             )}
 
-            {/* Position */}
             <div>
               <p className="text-xs text-[#6B7280] mb-1.5">Position</p>
               <select
@@ -810,9 +1183,7 @@ export default function StagePage() {
                 className="w-full bg-[#121821] border border-[#232B36] text-[#E5E7EB] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FF5A1F]/50"
               >
                 <option value="">Select position…</option>
-                {caPositions.map(p => (
-                  <option key={p.value} value={p.value}>{p.label}</option>
-                ))}
+                {caPositions.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
               </select>
             </div>
 
@@ -826,10 +1197,8 @@ export default function StagePage() {
               >
                 {caSaving ? 'Assigning…' : 'Assign'}
               </button>
-              <button
-                onClick={() => setAssigningProfile(null)}
-                className="px-4 bg-[#121821] border border-[#232B36] text-[#6B7280] hover:text-[#E5E7EB] rounded-xl py-2.5 text-sm transition-colors"
-              >
+              <button onClick={() => setAssigningProfile(null)}
+                className="px-4 bg-[#121821] border border-[#232B36] text-[#6B7280] hover:text-[#E5E7EB] rounded-xl py-2.5 text-sm transition-colors">
                 Cancel
               </button>
             </div>
@@ -839,10 +1208,8 @@ export default function StagePage() {
 
       {/* Toast */}
       {toast && (
-        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl text-sm font-medium shadow-2xl transition-all ${
-          toast.ok
-            ? 'bg-[#22C55E]/20 border border-[#22C55E]/40 text-[#22C55E]'
-            : 'bg-red-500/20 border border-red-500/40 text-red-400'
+        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl text-sm font-medium shadow-2xl ${
+          toast.ok ? 'bg-[#22C55E]/20 border border-[#22C55E]/40 text-[#22C55E]' : 'bg-red-500/20 border border-red-500/40 text-red-400'
         }`}>
           {toast.msg}
         </div>
