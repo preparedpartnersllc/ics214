@@ -14,7 +14,7 @@ import {
 } from '@/lib/ics-positions'
 import Link from 'next/link'
 import { activityStatus, fmtAgo, STATUS_DOT_COLOR, STATUS_LABEL, fetchLastEntryMap, type LastEntryMap } from '@/lib/accountability'
-import { PERSONNEL_STATUS_COLOR, PERSONNEL_STATUS_LABEL, PERSONNEL_STATUS_BG } from '@/lib/personnel-lifecycle'
+import { PERSONNEL_STATUS_COLOR, PERSONNEL_STATUS_LABEL, PERSONNEL_STATUS_BG, derivePersonnelStatus } from '@/lib/personnel-lifecycle'
 
 const UNIQUE_POSITIONS = new Set([
   'team_leader','group_supervisor','division_supervisor','branch_director',
@@ -76,7 +76,8 @@ export default function StaffPage() {
   // Toast
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
 
-  // Lifecycle state — check-ins and demob requests for this OP
+  // Lifecycle state — check-ins and demob requests (with nested approvals) for this OP
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [checkins, setCheckins]           = useState<any[]>([])
   const [demobRequests, setDemobRequests] = useState<any[]>([])
 
@@ -128,6 +129,9 @@ export default function StaffPage() {
 
   async function load() {
     const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) setCurrentUserId(user.id)
+
     const [
       { data: opData }, { data: pData }, { data: aData },
       { data: divData }, { data: grpData }, { data: teamData },
@@ -143,7 +147,8 @@ export default function StaffPage() {
       supabase.from('agency_reps').select('*').eq('operational_period_id', opId).order('created_at'),
       fetchLastEntryMap(supabase, opId),
       supabase.from('personnel_checkins').select('*').eq('operational_period_id', opId),
-      supabase.from('demob_requests').select('*').eq('operational_period_id', opId),
+      // Include nested approvals so staff page can show progress and approver actions
+      supabase.from('demob_requests').select('*, demob_approvals(*)').eq('operational_period_id', opId),
     ])
     setOp(opData)
     setProfiles(pData ?? [])
@@ -169,14 +174,47 @@ export default function StaffPage() {
   const pendingDemobSet = useMemo(() => new Set(demobRequests.filter((r: any) => r.status === 'pending').map((r: any) => r.user_id)), [demobRequests])
   const demobilizedSet  = useMemo(() => new Set(demobRequests.filter((r: any) => r.status === 'approved').map((r: any) => r.user_id)), [demobRequests])
 
-  const staged = useMemo(() => {
+  // Map user_id → pending demob request (with nested approvals) for quick lookup in slots
+  const pendingDemobByUserId = useMemo(() => {
+    const m: Record<string, any> = {}
+    demobRequests.filter((r: any) => r.status === 'pending').forEach((r: any) => { m[r.user_id] = r })
+    return m
+  }, [demobRequests])
+
+  // Approvals this user needs to action on the current page
+  const myPendingApprovals = useMemo(() => {
+    if (!currentUserId) return []
+    const out: Array<{ approval: any; request: any }> = []
+    demobRequests.forEach((req: any) => {
+      if (req.status !== 'pending') return
+      ;(req.demob_approvals ?? []).forEach((appr: any) => {
+        if (appr.approver_user_id === currentUserId && !appr.approved_at) {
+          out.push({ approval: appr, request: req })
+        }
+      })
+    })
+    return out
+  }, [demobRequests, currentUserId])
+
+  // checkedInStaged: checked in, not assigned, not demobilized → draggable & assignable
+  // notCheckedIn: no check-in record, not assigned, not demobilized → check-in only
+  const { checkedInStaged, notCheckedIn } = useMemo(() => {
     const q = stagingQuery.toLowerCase()
-    return profiles.filter(p =>
-      !assignedUserIds.has(p.id) &&
-      !demobilizedSet.has(p.id) &&
-      (!q || p.full_name.toLowerCase().includes(q) || (p.default_agency ?? '').toLowerCase().includes(q))
-    )
-  }, [profiles, assignedUserIds, demobilizedSet, stagingQuery])
+    const checkedIn: any[] = []
+    const notIn:     any[] = []
+    for (const p of profiles) {
+      if (assignedUserIds.has(p.id))  continue
+      if (demobilizedSet.has(p.id))   continue
+      if (q && !p.full_name.toLowerCase().includes(q) && !(p.default_agency ?? '').toLowerCase().includes(q)) continue
+      if (checkinSet.has(p.id)) checkedIn.push(p)
+      else                       notIn.push(p)
+    }
+    return { checkedInStaged: checkedIn, notCheckedIn: notIn }
+  }, [profiles, assignedUserIds, demobilizedSet, checkinSet, stagingQuery])
+
+  // Keep `staged` pointing at checkedInStaged so drag handlers that reference
+  // `staged.length` still work without change.
+  const staged = checkedInStaged
 
   const sysTeamIdMap = useMemo(() => {
     const m: Record<string, string> = {}
@@ -315,12 +353,48 @@ export default function StaffPage() {
     showToast('Group moved', true)
   }
 
+  // ── Demob approval action ────────────────────────────────────────
+  async function approveDemob(approvalId: string, requestId: string) {
+    const supabase = createClient()
+    const now = new Date().toISOString()
+    await supabase.from('demob_approvals')
+      .update({ approved_at: now, approver_user_id: currentUserId })
+      .eq('id', approvalId)
+
+    // Check if all approvals on this request are now done
+    const { data: allApprovals } = await supabase
+      .from('demob_approvals').select('*').eq('demob_request_id', requestId)
+    const allDone = (allApprovals ?? []).every((a: any) => a.approved_at)
+
+    if (allDone) {
+      const req = demobRequests.find((r: any) => r.id === requestId)
+      await supabase.from('demob_requests')
+        .update({ status: 'approved', completed_at: now }).eq('id', requestId)
+      if (req?.assignment_id) {
+        await supabase.from('assignments').delete().eq('id', req.assignment_id)
+        setAssignments(prev => prev.filter((a: any) => a.id !== req.assignment_id))
+      }
+      showToast(`${profileMap[req?.user_id]?.full_name ?? 'Person'} demobilized`, true)
+    } else {
+      showToast('Approval recorded', true)
+    }
+
+    // Refresh demob requests so approval counts update
+    const { data: refreshed } = await supabase
+      .from('demob_requests').select('*, demob_approvals(*)')
+      .eq('operational_period_id', opId)
+    setDemobRequests(refreshed ?? [])
+  }
+
   // ── Assignment write / reassign / remove ─────────────────────────
   async function createAssignment(profileId: string, teamId: string, position: string): Promise<boolean> {
     const p = profileMap[profileId]
     if (!p) return false
     if (assignedUserIds.has(profileId)) {
       showToast(`${p.full_name} is already assigned.`, false); return false
+    }
+    if (pendingDemobSet.has(profileId)) {
+      showToast(`${p.full_name} has a pending demob request — cancel it first.`, false); return false
     }
     if (UNIQUE_POSITIONS.has(position)) {
       const conflict = (assignmentsByTeamId[teamId] ?? []).find((a: any) => a.ics_position === position)
@@ -348,10 +422,8 @@ export default function StaffPage() {
       group_id:    teamRow?.group_id    ?? null,
       division_id: teamRow?.division_id ?? null,
     }
-    console.log('[DnD] createAssignment payload', payload)
     const { data, error } = await supabase.from('assignments').insert(payload).select().single()
     setSaving(false)
-    console.log('[DnD] createAssignment result', { data, error })
     if (error) { showToast(error.message, false); return false }
     setAssignments(prev => [...prev, data])
     // Auto-check in when assigned — ensures lifecycle state is tracked
@@ -372,6 +444,9 @@ export default function StaffPage() {
   async function reassignTo(assignmentId: string, newTeamId: string, newPosition: string): Promise<boolean> {
     const assignment = assignments.find((a: any) => a.id === assignmentId)
     if (!assignment) return false
+    if (pendingDemobSet.has(assignment.user_id)) {
+      showToast(`Cannot reassign — demob pending. Cancel the request first.`, false); return false
+    }
     if (assignment.team_id === newTeamId && assignment.ics_position === newPosition) return true
     if (UNIQUE_POSITIONS.has(newPosition)) {
       const conflict = (assignmentsByTeamId[newTeamId] ?? []).find(
@@ -390,7 +465,6 @@ export default function StaffPage() {
 
     setSaving(true)
     const supabase = createClient()
-    console.log('[DnD] reassignTo', { assignmentId, newTeamId, newPosition, newSection })
     const { error } = await supabase.from('assignments')
       .update({
         team_id:      newTeamId,
@@ -402,7 +476,6 @@ export default function StaffPage() {
       })
       .eq('id', assignmentId)
     setSaving(false)
-    console.log('[DnD] reassignTo result', { error })
     if (error) { showToast(error.message, false); return false }
     const p = profileMap[assignment.user_id]
     setAssignments(prev => prev.map(a =>
@@ -554,7 +627,6 @@ export default function StaffPage() {
     e.dataTransfer.setData('profile-id', profileId)
     e.dataTransfer.setDragImage(attachGhost(), 0, 0)
     const p = profileMap[profileId]
-    console.log('[DnD] dragStartProfile', profileId, p?.full_name)
     requestAnimationFrame(() => {
       setDraggingProfileId(profileId)
       setDragOverlayData({ name: p?.full_name ?? '?', sub: p?.default_agency ?? p?.role ?? '' })
@@ -565,12 +637,12 @@ export default function StaffPage() {
     // Same rationale as dragStartProfile — defer state updates to rAF.
     // This is the primary fix for FilledSlot cards being undraggable after first placement:
     // the synchronous setState was causing React to unmount the dragged element mid-drag.
+    const a = assignments.find((x: any) => x.id === assignmentId)
+    if (a && pendingDemobSet.has(a.user_id)) { e.preventDefault(); return }
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('assignment-id', assignmentId)
     e.dataTransfer.setDragImage(attachGhost(), 0, 0)
-    const a = assignments.find((x: any) => x.id === assignmentId)
     const p = a ? profileMap[a.user_id] : null
-    console.log('[DnD] dragStartAssignment', assignmentId, p?.full_name)
     requestAnimationFrame(() => {
       setDraggingAssignmentId(assignmentId)
       setDragOverlayData({ name: p?.full_name ?? '?', sub: getPositionLabel(a?.ics_position ?? '') })
@@ -603,7 +675,6 @@ export default function StaffPage() {
     e.preventDefault()
     const aid = e.dataTransfer.getData('assignment-id')
     const pid = e.dataTransfer.getData('profile-id')
-    console.log('[DnD] performDrop', { teamId, position, aid, pid })
     dragEnd()
     if (aid) { await reassignTo(aid, teamId, position); return }
     if (pid) await createAssignment(pid, teamId, position)
@@ -613,7 +684,6 @@ export default function StaffPage() {
     e.preventDefault()
     const aid = e.dataTransfer.getData('assignment-id')
     const pid = e.dataTransfer.getData('profile-id')
-    console.log('[DnD] performDropSys', { sysKey, position, groupId, divId, aid, pid })
     dragEnd()
     if (aid) {
       const tid = await ensureSysTeam(sysKey, groupId, divId)
@@ -628,7 +698,6 @@ export default function StaffPage() {
   async function performDropToStaging(e: React.DragEvent) {
     e.preventDefault()
     const aid = e.dataTransfer.getData('assignment-id')
-    console.log('[DnD] performDropToStaging', { aid })
     dragEnd()
     if (aid) await removeAssignment(aid)
   }
@@ -726,19 +795,82 @@ export default function StaffPage() {
 
   function FilledSlot({ label, assignment }: { label: string; assignment: any }) {
     const p = profileMap[assignment.user_id]
-    const isBeingDragged  = draggingAssignmentId === assignment.id
-    const isPendingDemob  = pendingDemobSet.has(assignment.user_id)
-    const status = activityStatus(assignment.user_id, lastEntryMap)
-    const last   = lastEntryMap[assignment.user_id]
+    const isBeingDragged = draggingAssignmentId === assignment.id
+    const isPendingDemob = pendingDemobSet.has(assignment.user_id)
+    const actStatus      = activityStatus(assignment.user_id, lastEntryMap)
+    const last           = lastEntryMap[assignment.user_id]
+
+    // Approval progress for pending demob
+    const demobReq   = isPendingDemob ? pendingDemobByUserId[assignment.user_id] : null
+    const approvals  = demobReq?.demob_approvals ?? []
+    const approvedN  = approvals.filter((a: any) => a.approved_at).length
+    const totalN     = approvals.length
+    // My pending approval on this slot (if any)
+    const myApproval = currentUserId
+      ? approvals.find((a: any) => a.approver_user_id === currentUserId && !a.approved_at)
+      : null
+
+    if (isPendingDemob) {
+      // ── Pending Vacancy slot ──────────────────────────────────────
+      return (
+        <div className="rounded-lg border border-[#F59E0B]/40 bg-[#F59E0B]/5 overflow-hidden select-none">
+          {/* Header strip */}
+          <div className="flex items-center justify-between px-3 py-1.5 bg-[#F59E0B]/10 border-b border-[#F59E0B]/20">
+            <span className="text-[10px] font-bold text-[#F59E0B] uppercase tracking-wide font-mono">
+              Pending Vacancy
+            </span>
+            {totalN > 0 ? (
+              <span className="text-[10px] font-mono text-[#F59E0B]">
+                {approvedN}/{totalN} approved
+              </span>
+            ) : (
+              <span className="text-[10px] font-mono text-[#F59E0B]">awaiting approval</span>
+            )}
+          </div>
+          {/* Person row */}
+          <div className="flex items-center gap-2 px-3 py-2">
+            <div className="w-6 h-6 rounded-full bg-[#1a2235] border border-[#F59E0B]/20 flex items-center justify-center text-[10px] font-mono text-[#9CA3AF] flex-shrink-0">
+              {getInitials(p?.full_name ?? '?')}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-[#D97706] truncate">{p?.full_name ?? 'Unknown'}</p>
+              <p className="text-[10px] text-[#92400E] leading-none mt-px">{label}</p>
+            </div>
+            {/* My approve button — shown when I have a pending approval on this slot */}
+            {myApproval && (
+              <button
+                onClick={e => { e.stopPropagation(); approveDemob(myApproval.id, demobReq.id) }}
+                className="flex-shrink-0 text-[9px] font-bold text-white bg-[#22C55E] hover:bg-[#16A34A] px-2 py-1 rounded transition-colors"
+              >
+                Approve
+              </button>
+            )}
+            {/* Mobile action sheet */}
+            <button
+              onClick={e => { e.stopPropagation(); setMobileActionSheet({ assignment, profile: p }) }}
+              className="md:hidden text-[#92400E] w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F59E0B]/10 flex-shrink-0 touch-manipulation text-base leading-none"
+            >⋮</button>
+            {/* Desktop: cancel demob */}
+            <button
+              onClick={e => { e.stopPropagation(); cancelDemobRequest(assignment.user_id) }}
+              className="hidden md:block text-[#F59E0B] text-[9px] font-semibold px-1.5 py-0.5 rounded hover:bg-[#F59E0B]/15 transition-colors flex-shrink-0"
+              title="Cancel demob request"
+            >Cancel</button>
+          </div>
+        </div>
+      )
+    }
+
+    // ── Normal assigned slot ──────────────────────────────────────
     return (
       <div
         draggable
         onDragStart={e => dragStartAssignment(assignment.id, e)}
         onDragEnd={dragEnd}
         className={`group flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors cursor-grab active:cursor-grabbing select-none ${
-          isBeingDragged  ? 'opacity-60 border-[#FF5A1F]/40 bg-[#FF5A1F]/5'
-          : isPendingDemob ? 'bg-[#F59E0B]/5 border-[#F59E0B]/30'
-          :                  'bg-[#121821] border-[#232B36] hover:border-[#3a4555]'
+          isBeingDragged
+            ? 'opacity-60 border-[#FF5A1F]/40 bg-[#FF5A1F]/5'
+            : 'bg-[#121821] border-[#232B36] hover:border-[#3a4555]'
         }`}
       >
         <div className="w-6 h-6 rounded-full bg-[#1a2235] border border-[#232B36] flex items-center justify-center text-[10px] font-mono text-[#9CA3AF] flex-shrink-0">
@@ -751,17 +883,12 @@ export default function StaffPage() {
         {assignment.dual_hatted && (
           <span className="text-[9px] font-bold text-[#F59E0B] bg-[#F59E0B]/10 px-1 py-px rounded font-mono flex-shrink-0">DH</span>
         )}
-        {isPendingDemob && (
-          <span className="text-[9px] font-bold text-[#F59E0B] bg-[#F59E0B]/15 px-1.5 py-px rounded font-mono flex-shrink-0 ring-1 ring-[#F59E0B]/30">
-            Demob
-          </span>
-        )}
-        {/* Activity status — data-status attr exposes value for future sort */}
-        <div className="flex-shrink-0 flex flex-col items-end gap-px" data-status={status}>
+        {/* Activity status dot — ICS 214 log recency */}
+        <div className="flex-shrink-0 flex flex-col items-end gap-px" data-status={actStatus}>
           <div className="flex items-center gap-1">
-            <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: STATUS_DOT_COLOR[status] }} />
-            <span className="text-[9px] font-semibold leading-none" style={{ color: STATUS_DOT_COLOR[status] }}>
-              {STATUS_LABEL[status]}
+            <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: STATUS_DOT_COLOR[actStatus] }} />
+            <span className="text-[9px] font-semibold leading-none" style={{ color: STATUS_DOT_COLOR[actStatus] }}>
+              {STATUS_LABEL[actStatus]}
             </span>
           </div>
           {last && <p className="text-[9px] text-[#4B5563] leading-none">{fmtAgo(last)}</p>}
@@ -772,21 +899,13 @@ export default function StaffPage() {
           className="md:hidden text-[#6B7280] w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#232B36] flex-shrink-0 touch-manipulation text-base leading-none"
           title="Actions"
         >⋮</button>
-        {/* Desktop actions: demob request + return to staging */}
+        {/* Desktop: demob request + return to staging */}
         <div className="hidden md:flex items-center gap-0.5 flex-shrink-0">
-          {isPendingDemob ? (
-            <button
-              onClick={e => { e.stopPropagation(); cancelDemobRequest(assignment.user_id) }}
-              className="text-[#F59E0B] text-[9px] font-semibold px-1.5 py-0.5 rounded hover:bg-[#F59E0B]/15 transition-colors"
-              title="Cancel demob request"
-            >Cancel</button>
-          ) : (
-            <button
-              onClick={e => { e.stopPropagation(); performDemobRequest(assignment.user_id, assignment.id) }}
-              className="text-[#374151] hover:text-[#F59E0B] transition-colors w-5 h-5 flex items-center justify-center rounded hover:bg-[#F59E0B]/10 opacity-0 group-hover:opacity-100 text-xs"
-              title="Request demobilization"
-            >↓</button>
-          )}
+          <button
+            onClick={e => { e.stopPropagation(); performDemobRequest(assignment.user_id, assignment.id) }}
+            className="text-[#374151] hover:text-[#F59E0B] transition-colors w-5 h-5 flex items-center justify-center rounded hover:bg-[#F59E0B]/10 opacity-0 group-hover:opacity-100 text-xs"
+            title="Request demobilization"
+          >↓</button>
           <button
             onClick={e => { e.stopPropagation(); removeAssignment(assignment.id) }}
             className="text-[#374151] hover:text-red-400 transition-colors text-sm w-5 h-5 flex items-center justify-center rounded hover:bg-red-500/10"
@@ -1024,7 +1143,11 @@ export default function StaffPage() {
       <div className="px-3 pt-3 pb-2 border-b border-[#232B36]/60">
         <div className="flex items-baseline gap-2 mb-2">
           <span className="text-xs font-bold text-[#E5E7EB] uppercase tracking-wider">Staging</span>
-          <span className="text-[10px] font-mono text-[#FF5A1F] bg-[#FF5A1F]/10 px-1.5 py-px rounded">{staged.length}</span>
+          {/* Count shows checked-in-only; not-checked-in count shown separately */}
+          <span className="text-[10px] font-mono text-[#FF5A1F] bg-[#FF5A1F]/10 px-1.5 py-px rounded">{checkedInStaged.length}</span>
+          {notCheckedIn.length > 0 && (
+            <span className="text-[10px] font-mono text-[#4B5563] px-1.5 py-px rounded">+{notCheckedIn.length} not in</span>
+          )}
         </div>
         <div className="relative">
           <input
@@ -1043,7 +1166,7 @@ export default function StaffPage() {
         )}
       </div>
 
-      {/* Drop zone for returning assigned people */}
+      {/* Scrollable body: drop zone + checked-in staging + not-checked-in */}
       <div
         className={`flex-1 overflow-y-auto p-2 space-y-1 transition-colors ${
           stagingIsOver ? 'bg-[#FF5A1F]/5 ring-1 ring-inset ring-[#FF5A1F]/30 rounded-b-xl' : ''
@@ -1057,64 +1180,88 @@ export default function StaffPage() {
             <p className="text-[10px] text-[#FF5A1F] font-mono">↓ Return to staging</p>
           </div>
         )}
-        {staged.length === 0 && !stagingIsOver && (
-          <p className="text-[10px] text-[#374151] text-center py-6 font-mono">
-            {stagingQuery ? 'No match' : 'All personnel assigned'}
+
+        {/* ── Checked-in staging: draggable & assignable ── */}
+        {checkedInStaged.length === 0 && !stagingIsOver && (
+          <p className="text-[10px] text-[#374151] text-center py-4 font-mono">
+            {stagingQuery ? 'No match' : 'No checked-in personnel'}
           </p>
         )}
-        {staged.map((p: any) => {
+        {checkedInStaged.map((p: any) => {
           const stagStatus = activityStatus(p.id, lastEntryMap)
           const stagLast   = lastEntryMap[p.id]
           return (
-          <div
-            key={p.id}
-            draggable
-            onDragStart={e => dragStartProfile(p.id, e)}
-            onDragEnd={dragEnd}
-            className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border cursor-grab active:cursor-grabbing transition-colors select-none ${
-              draggingProfileId === p.id
-                ? 'opacity-60 border-[#FF5A1F]/40 bg-[#FF5A1F]/5'
-                : 'border-[#232B36] bg-[#121821] hover:border-[#3a4555] hover:bg-[#161D26]'
-            }`}
-          >
-            <div className="w-7 h-7 rounded-full bg-[#1a2235] border border-[#232B36] flex items-center justify-center text-[10px] font-mono text-[#9CA3AF] flex-shrink-0">
-              {getInitials(p.full_name)}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium text-[#E5E7EB] truncate">{p.full_name}</p>
-              <p className="text-[10px] text-[#4B5563] truncate leading-none mt-px">
-                {stagLast ? fmtAgo(stagLast) : (p.default_agency ?? p.role ?? '—')}
-              </p>
-            </div>
-            {/* Check-in badge / button */}
-            {checkinSet.has(p.id) ? (
-              <span className="text-[9px] font-bold text-[#22C55E] bg-[#22C55E]/10 px-1.5 py-px rounded font-mono flex-shrink-0">In</span>
-            ) : (
-              <button
-                onClick={e => { e.stopPropagation(); performCheckin(p.id) }}
-                className="text-[9px] font-medium text-[#374151] hover:text-[#22C55E] border border-[#232B36] hover:border-[#22C55E]/40 px-1.5 py-px rounded font-mono flex-shrink-0 transition-colors touch-manipulation"
-                title="Check in"
-              >Check In</button>
-            )}
-            {/* Status dot — always shown so staging users are accounted for */}
             <div
-              className="flex-shrink-0 flex flex-col items-center gap-px"
-              title={stagLast ? `${STATUS_LABEL[stagStatus]} · ${fmtAgo(stagLast)}` : STATUS_LABEL[stagStatus]}
+              key={p.id}
+              draggable
+              onDragStart={e => dragStartProfile(p.id, e)}
+              onDragEnd={dragEnd}
+              className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border cursor-grab active:cursor-grabbing transition-colors select-none ${
+                draggingProfileId === p.id
+                  ? 'opacity-60 border-[#FF5A1F]/40 bg-[#FF5A1F]/5'
+                  : 'border-[#232B36] bg-[#121821] hover:border-[#3a4555] hover:bg-[#161D26]'
+              }`}
             >
-              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: STATUS_DOT_COLOR[stagStatus] }} />
-              {stagLast && <p className="text-[9px] leading-none" style={{ color: STATUS_DOT_COLOR[stagStatus] }}>{fmtAgo(stagLast)}</p>}
+              <div className="w-7 h-7 rounded-full bg-[#1a2235] border border-[#232B36] flex items-center justify-center text-[10px] font-mono text-[#9CA3AF] flex-shrink-0">
+                {getInitials(p.full_name)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-[#E5E7EB] truncate">{p.full_name}</p>
+                <p className="text-[10px] text-[#4B5563] truncate leading-none mt-px">
+                  {stagLast ? fmtAgo(stagLast) : (p.default_agency ?? p.role ?? '—')}
+                </p>
+              </div>
+              {/* "In" badge — always present since this list is checked-in-only */}
+              <span className="text-[9px] font-bold text-[#22C55E] bg-[#22C55E]/10 px-1.5 py-px rounded font-mono flex-shrink-0">In</span>
+              {/* Activity status dot */}
+              <div
+                className="flex-shrink-0 flex flex-col items-center gap-px"
+                title={stagLast ? `${STATUS_LABEL[stagStatus]} · ${fmtAgo(stagLast)}` : STATUS_LABEL[stagStatus]}
+              >
+                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: STATUS_DOT_COLOR[stagStatus] }} />
+                {stagLast && <p className="text-[9px] leading-none" style={{ color: STATUS_DOT_COLOR[stagStatus] }}>{fmtAgo(stagLast)}</p>}
+              </div>
+              <button
+                onClick={() => openAssign(p)}
+                className="flex-shrink-0 text-[10px] text-[#374151] hover:text-[#FF5A1F] transition-colors font-mono touch-manipulation rounded px-2 py-1.5 hover:bg-[#FF5A1F]/10"
+                title="Assign"
+              >
+                <span className="md:hidden text-xs font-medium">Assign</span>
+                <span className="hidden md:inline">→</span>
+              </button>
             </div>
-            <button
-              onClick={() => openAssign(p)}
-              className="flex-shrink-0 text-[10px] text-[#374151] hover:text-[#FF5A1F] transition-colors font-mono touch-manipulation rounded px-2 py-1.5 hover:bg-[#FF5A1F]/10"
-              title="Assign"
-            >
-              <span className="md:hidden text-xs font-medium">Assign</span>
-              <span className="hidden md:inline">→</span>
-            </button>
-          </div>
           )
         })}
+
+        {/* ── Not checked in: check-in only, not draggable ── */}
+        {notCheckedIn.length > 0 && (
+          <div className="mt-3 pt-2 border-t border-[#1f2937]">
+            <p className="text-[10px] font-mono text-[#374151] uppercase tracking-wider px-1 mb-1.5">
+              Not checked in · {notCheckedIn.length}
+            </p>
+            {notCheckedIn.map((p: any) => (
+              <div
+                key={p.id}
+                className="flex items-center gap-2 px-2.5 py-2 rounded-lg border border-[#1a2235] bg-[#0d1117] mb-1 opacity-60"
+              >
+                <div className="w-7 h-7 rounded-full bg-[#151c26] border border-[#1f2937] flex items-center justify-center text-[10px] font-mono text-[#4B5563] flex-shrink-0">
+                  {getInitials(p.full_name)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium text-[#6B7280] truncate">{p.full_name}</p>
+                  <p className="text-[10px] text-[#374151] truncate leading-none mt-px">{p.default_agency ?? '—'}</p>
+                </div>
+                <button
+                  onClick={e => { e.stopPropagation(); performCheckin(p.id) }}
+                  className="flex-shrink-0 text-[9px] font-semibold text-[#3B82F6] bg-[#3B82F6]/10 hover:bg-[#3B82F6]/20 border border-[#3B82F6]/20 px-1.5 py-px rounded font-mono transition-colors touch-manipulation"
+                  title="Check in"
+                >
+                  Check In
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -1145,7 +1292,7 @@ export default function StaffPage() {
             onClick={() => setMobileStagingOpen(v => !v)}
           >
             Staging
-            <span className="text-[10px] font-mono bg-[#FF5A1F] text-white px-1 rounded">{staged.length}</span>
+            <span className="text-[10px] font-mono bg-[#FF5A1F] text-white px-1 rounded">{checkedInStaged.length}</span>
           </button>
         </div>
       </header>
@@ -1177,6 +1324,42 @@ export default function StaffPage() {
 
           {saving && (
             <div className="text-[10px] text-[#FF5A1F] font-mono text-center animate-pulse">Saving…</div>
+          )}
+
+          {/* Demob approvals banner — shown when the current user has pending approvals */}
+          {myPendingApprovals.length > 0 && (
+            <div className="bg-[#F59E0B]/8 border border-[#F59E0B]/30 rounded-xl px-4 py-3">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-bold text-[#F59E0B] uppercase tracking-wide">
+                  Demob Approvals Needed · {myPendingApprovals.length}
+                </p>
+              </div>
+              <div className="space-y-2">
+                {myPendingApprovals.map(({ approval, request }) => {
+                  const person = profileMap[request.user_id]
+                  const personAssignment = assignments.find((a: any) => a.id === request.assignment_id)
+                  const approvals = request.demob_approvals ?? []
+                  const approvedN = approvals.filter((a: any) => a.approved_at).length
+                  return (
+                    <div key={approval.id} className="flex items-center justify-between gap-3 bg-[#0d1117] rounded-lg px-3 py-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium text-[#E5E7EB] truncate">{person?.full_name ?? 'Unknown'}</p>
+                        <p className="text-[10px] text-[#6B7280]">
+                          {getPositionLabel(personAssignment?.ics_position ?? '')}
+                          {approvals.length > 0 && ` · ${approvedN}/${approvals.length} approved`}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => approveDemob(approval.id, request.id)}
+                        className="flex-shrink-0 text-xs font-semibold text-white bg-[#22C55E] hover:bg-[#16A34A] px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        Approve
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
           )}
 
           {/* Command */}
@@ -1578,8 +1761,9 @@ export default function StaffPage() {
               </div>
             </div>
 
-            {/* Move to new slot */}
+            {/* Move to new slot — disabled while pending demob */}
             <button
+              disabled={pendingDemobSet.has(mobileActionSheet.assignment.user_id)}
               onClick={() => {
                 const { assignment, profile } = mobileActionSheet
                 setMobileActionSheet(null)
@@ -1587,26 +1771,27 @@ export default function StaffPage() {
                 setAssigningProfile(profile)
                 setCaSection('command'); setCaTeamId(''); setCaPosition(''); setCaError(null)
               }}
-              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-[#121821] border border-[#232B36] text-sm text-[#E5E7EB] hover:border-[#FF5A1F]/50 active:bg-[#FF5A1F]/5 transition-colors touch-manipulation"
+              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-[#121821] border border-[#232B36] text-sm text-[#E5E7EB] hover:border-[#FF5A1F]/50 active:bg-[#FF5A1F]/5 transition-colors touch-manipulation disabled:opacity-30 disabled:pointer-events-none"
             >
               <span className="text-[#FF5A1F] text-base leading-none">⇄</span>
               <span>Move to new slot</span>
             </button>
 
-            {/* Return to Staging */}
+            {/* Return to Staging — disabled while pending demob */}
             <button
+              disabled={pendingDemobSet.has(mobileActionSheet.assignment.user_id)}
               onClick={async () => {
                 const { assignment } = mobileActionSheet
                 setMobileActionSheet(null)
                 await removeAssignment(assignment.id)
               }}
-              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-[#121821] border border-[#232B36] text-sm text-[#6B7280] hover:text-[#E5E7EB] hover:border-[#374151] active:bg-[#232B36] transition-colors touch-manipulation"
+              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-[#121821] border border-[#232B36] text-sm text-[#6B7280] hover:text-[#E5E7EB] hover:border-[#374151] active:bg-[#232B36] transition-colors touch-manipulation disabled:opacity-30 disabled:pointer-events-none"
             >
               <span className="text-base leading-none">↩</span>
               <span>Return to Staging</span>
             </button>
 
-            {/* Request Demob */}
+            {/* Demob actions */}
             {!pendingDemobSet.has(mobileActionSheet.assignment.user_id) ? (
               <button
                 onClick={async () => {
@@ -1619,19 +1804,41 @@ export default function StaffPage() {
                 <span className="text-base leading-none">↓</span>
                 <span>Request Demobilization</span>
               </button>
-            ) : (
-              <button
-                onClick={async () => {
-                  const { assignment } = mobileActionSheet
-                  setMobileActionSheet(null)
-                  await cancelDemobRequest(assignment.user_id)
-                }}
-                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-[#121821] border border-[#F59E0B]/20 text-sm text-[#F59E0B] hover:border-[#F59E0B]/40 active:bg-[#F59E0B]/5 transition-colors touch-manipulation"
-              >
-                <span className="text-base leading-none">✕</span>
-                <span>Cancel Demob Request</span>
-              </button>
-            )}
+            ) : (() => {
+              const demobReq = pendingDemobByUserId[mobileActionSheet.assignment.user_id]
+              const approvals = demobReq?.demob_approvals ?? []
+              const approvedN = approvals.filter((a: any) => a.approved_at).length
+              const myApproval = currentUserId
+                ? approvals.find((a: any) => a.approver_user_id === currentUserId && !a.approved_at)
+                : null
+              return (
+                <div className="space-y-2">
+                  {myApproval && (
+                    <button
+                      onClick={async () => {
+                        setMobileActionSheet(null)
+                        await approveDemob(myApproval.id, demobReq.id)
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-[#22C55E]/10 border border-[#22C55E]/30 text-sm text-[#22C55E] active:bg-[#22C55E]/20 transition-colors touch-manipulation"
+                    >
+                      <span className="text-base leading-none">✓</span>
+                      <span>Approve Demob{approvals.length > 0 ? ` (${approvedN}/${approvals.length})` : ''}</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={async () => {
+                      const { assignment } = mobileActionSheet
+                      setMobileActionSheet(null)
+                      await cancelDemobRequest(assignment.user_id)
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-[#121821] border border-[#F59E0B]/20 text-sm text-[#F59E0B] hover:border-[#F59E0B]/40 active:bg-[#F59E0B]/5 transition-colors touch-manipulation"
+                  >
+                    <span className="text-base leading-none">✕</span>
+                    <span>Cancel Demob Request</span>
+                  </button>
+                </div>
+              )
+            })()}
 
             {/* Cancel */}
             <button
