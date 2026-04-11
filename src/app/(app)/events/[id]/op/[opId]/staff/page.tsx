@@ -177,12 +177,26 @@ export default function StaffPage() {
   const divs             = useMemo(() => divisions.filter((d: any) => d.type === 'division'), [divisions])
   const unassignedGroups = useMemo(() => groups.filter((g: any) => !g.division_id), [groups])
 
-  // Profile-based agency reps: assignments in __command__ team with agency_representative position
+  // Profile-based agency reps: assignments flagged is_agency_rep (or legacy position check)
   const agencyRepAssignments = useMemo(() => {
     const cmdId = sysTeamIdMap['__command__']
     if (!cmdId) return []
-    return (assignmentsByTeamId[cmdId] ?? []).filter((a: any) => a.ics_position === 'agency_representative')
+    return (assignmentsByTeamId[cmdId] ?? []).filter(
+      (a: any) => a.is_agency_rep || a.ics_position === 'agency_representative'
+    )
   }, [sysTeamIdMap, assignmentsByTeamId])
+
+  // Derive the ICS section name from a team id — used when writing assignments
+  // so the section column is always populated correctly.
+  function sectionForTeam(teamId: string): string {
+    const t = teams.find((x: any) => x.id === teamId)
+    if (!t) return 'operations'
+    if (t.name === '__command__')   return 'command'
+    if (t.name === '__planning__')  return 'planning'
+    if (t.name === '__logistics__') return 'logistics'
+    if (t.name === '__finance__')   return 'finance'
+    return 'operations'
+  }
 
   const isDragging = !!(draggingProfileId || draggingAssignmentId)
 
@@ -297,10 +311,21 @@ export default function StaffPage() {
     setSaving(true)
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
+    const teamRow = teams.find((t: any) => t.id === teamId)
     const payload = {
-      operational_period_id: opId, team_id: teamId, user_id: profileId,
-      ics_position: position, home_agency: p.default_agency ?? '',
-      home_unit: p.default_unit ?? null, assigned_by: user!.id, dual_hatted: false,
+      operational_period_id: opId,
+      team_id:    teamId,
+      user_id:    profileId,
+      ics_position: position,
+      home_agency: p.default_agency ?? '',
+      home_unit:   p.default_unit ?? null,
+      assigned_by: user!.id,
+      dual_hatted: false,
+      // Explicit model columns — backfilled on existing rows by migration
+      section:      sectionForTeam(teamId),
+      is_agency_rep: position === 'agency_representative',
+      group_id:    teamRow?.group_id    ?? null,
+      division_id: teamRow?.division_id ?? null,
     }
     console.log('[DnD] createAssignment payload', payload)
     const { data, error } = await supabase.from('assignments').insert(payload).select().single()
@@ -325,17 +350,39 @@ export default function StaffPage() {
         return false
       }
     }
+    const teamRow = teams.find((t: any) => t.id === newTeamId)
+    const newSection     = sectionForTeam(newTeamId)
+    const newIsAgencyRep = newPosition === 'agency_representative'
+    const newGroupId     = teamRow?.group_id    ?? null
+    const newDivisionId  = teamRow?.division_id ?? null
+
     setSaving(true)
     const supabase = createClient()
-    console.log('[DnD] reassignTo', { assignmentId, newTeamId, newPosition })
+    console.log('[DnD] reassignTo', { assignmentId, newTeamId, newPosition, newSection })
     const { error } = await supabase.from('assignments')
-      .update({ team_id: newTeamId, ics_position: newPosition }).eq('id', assignmentId)
+      .update({
+        team_id:      newTeamId,
+        ics_position: newPosition,
+        section:      newSection,
+        is_agency_rep: newIsAgencyRep,
+        group_id:     newGroupId,
+        division_id:  newDivisionId,
+      })
+      .eq('id', assignmentId)
     setSaving(false)
     console.log('[DnD] reassignTo result', { error })
     if (error) { showToast(error.message, false); return false }
     const p = profileMap[assignment.user_id]
     setAssignments(prev => prev.map(a =>
-      a.id === assignmentId ? { ...a, team_id: newTeamId, ics_position: newPosition } : a
+      a.id === assignmentId ? {
+        ...a,
+        team_id:      newTeamId,
+        ics_position: newPosition,
+        section:      newSection,
+        is_agency_rep: newIsAgencyRep,
+        group_id:     newGroupId,
+        division_id:  newDivisionId,
+      } : a
     ))
     showToast(`${p?.full_name ?? 'Person'} → ${getPositionLabel(newPosition)}`, true)
     return true
