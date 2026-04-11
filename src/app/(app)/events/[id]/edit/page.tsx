@@ -168,6 +168,18 @@ export default function EditEventPage() {
             </button>
           </div>
         </form>
+
+        <div className="pt-2 border-t border-[#232B36]">
+          <Link
+            href={`/events/${eventId}/demob-config`}
+            className="inline-flex items-center gap-1.5 text-xs text-[#6B7280] hover:text-[#E5E7EB] transition-colors py-1"
+          >
+            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+            Configure demob approvers
+          </Link>
+        </div>
       </main>
     </div>
   )

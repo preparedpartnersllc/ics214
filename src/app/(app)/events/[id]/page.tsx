@@ -64,7 +64,9 @@ export default function EventDetailPage() {
   const [assignments, setAssignments] = useState<any[]>([])
   const [profileMap, setProfileMap] = useState<any>({})
   const [recentEntries, setRecentEntries] = useState<any[]>([])
-  const [lastEntryMap, setLastEntryMap] = useState<LastEntryMap>({})
+  const [lastEntryMap, setLastEntryMap]     = useState<LastEntryMap>({})
+  const [demobRequests, setDemobRequests]   = useState<any[]>([])
+  const [demobApprovals, setDemobApprovals] = useState<any[]>([])
   const [alerts, setAlerts] = useState<any[]>([])
   const [expandedOps, setExpandedOps] = useState<Set<string>>(new Set())
   const [confirming, setConfirming] = useState<string | null>(null)
@@ -178,6 +180,16 @@ export default function EventDetailPage() {
       ])
       setLastEntryMap(entryMap)
       setRecentEntries(myEntriesResult.data ?? [])
+
+      // Load demob requests and approvals for active OP
+      const { data: drData } = await supabase
+        .from('demob_requests')
+        .select('*, demob_approvals(*)')
+        .eq('operational_period_id', activeOpItem.id)
+        .order('requested_at', { ascending: false })
+      const allDemobRequests = drData ?? []
+      setDemobRequests(allDemobRequests)
+      setDemobApprovals(allDemobRequests.flatMap((r: any) => r.demob_approvals ?? []))
     }
   }
 
@@ -269,6 +281,44 @@ export default function EventDetailPage() {
     setConfirming(null)
   }
 
+  async function approveDemob(approvalId: string, demobRequestId: string) {
+    const supabase = createClient()
+    const now = new Date().toISOString()
+    await supabase.from('demob_approvals')
+      .update({ approved_at: now, approver_user_id: currentUserId })
+      .eq('id', approvalId)
+
+    // Re-fetch this request's approvals to check if all done
+    const { data: allApprovals } = await supabase
+      .from('demob_approvals')
+      .select('*')
+      .eq('demob_request_id', demobRequestId)
+
+    const allDone = (allApprovals ?? []).every((a: any) => a.approved_at)
+    if (allDone) {
+      const req = demobRequests.find((r: any) => r.id === demobRequestId)
+      await supabase.from('demob_requests')
+        .update({ status: 'approved', completed_at: now })
+        .eq('id', demobRequestId)
+      if (req?.assignment_id) {
+        await supabase.from('assignments').delete().eq('id', req.assignment_id)
+      }
+    }
+
+    // Refresh demob data
+    const activeOpItem = ops.find((o: any) => o.status === 'active')
+    if (activeOpItem) {
+      const { data: drData } = await supabase
+        .from('demob_requests')
+        .select('*, demob_approvals(*)')
+        .eq('operational_period_id', activeOpItem.id)
+        .order('requested_at', { ascending: false })
+      const refreshed = drData ?? []
+      setDemobRequests(refreshed)
+      setDemobApprovals(refreshed.flatMap((r: any) => r.demob_approvals ?? []))
+    }
+  }
+
   async function handleCreateAlert(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (!alertTitle.trim()) return
@@ -346,6 +396,11 @@ export default function EventDetailPage() {
 
   const isAdmin = profile?.role === 'admin'
   const canManage = isAdmin || profile?.role === 'supervisor'
+
+  const pendingDemobRequests = demobRequests.filter((r: any) => r.status === 'pending')
+  const myPendingApprovals   = demobApprovals.filter(
+    (a: any) => a.approver_user_id === currentUserId && !a.approved_at
+  )
 
   const severityRank: Record<string, number> = { critical: 3, warning: 2, info: 1 }
   const topAlert = alerts.length > 0
@@ -851,6 +906,112 @@ export default function EventDetailPage() {
             </section>
           )
         })()}
+
+        {/* 3c · DEMOB APPROVALS (shown when user has pending approvals) */}
+        {myPendingApprovals.length > 0 && (
+          <section className="mb-8">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold text-[#F59E0B] uppercase tracking-wide flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#F59E0B] animate-pulse" />
+                Demob Approvals Needed
+              </p>
+              <span className="text-xs font-mono text-[#F59E0B] bg-[#F59E0B]/10 px-2 py-0.5 rounded-full">
+                {myPendingApprovals.length}
+              </span>
+            </div>
+            <div className="bg-[#161D26] border border-[#F59E0B]/20 rounded-2xl overflow-hidden divide-y divide-[#232B36]/60">
+              {myPendingApprovals.map((approval: any) => {
+                const req = demobRequests.find((r: any) => r.id === approval.demob_request_id)
+                const person = profileMap[req?.user_id]
+                const personAssignment = activeOp
+                  ? assignments.find((a: any) => a.user_id === req?.user_id && a.operational_period_id === activeOp.id)
+                  : null
+                return (
+                  <div key={approval.id} className="flex items-center gap-3 px-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-[#E5E7EB]">
+                        {person?.full_name ?? 'Unknown'}
+                      </p>
+                      <p className="text-xs text-[#6B7280] mt-px">
+                        {personAssignment ? getPositionLabel(personAssignment.ics_position) : '—'}
+                        <span className="text-[#374151] mx-1">·</span>
+                        Requested {req ? new Date(req.requested_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => approveDemob(approval.id, approval.demob_request_id)}
+                      className="flex-shrink-0 text-xs font-semibold text-white bg-[#22C55E] hover:bg-[#16A34A] px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      Approve
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* 3d · ADMIN DEMOB CLOSEOUT */}
+        {canManage && pendingDemobRequests.length > 0 && (
+          <section className="mb-8">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide">Pending Demob</p>
+              <Link
+                href={`/events/${id}/demob-config`}
+                className="text-xs text-[#6B7280] hover:text-[#E5E7EB] transition-colors py-1 px-2 -mr-2 rounded-lg hover:bg-[#161D26]"
+              >
+                Configure →
+              </Link>
+            </div>
+            <div className="bg-[#161D26] border border-[#232B36] rounded-2xl overflow-hidden divide-y divide-[#232B36]/60">
+              {pendingDemobRequests.map((req: any) => {
+                const person = profileMap[req.user_id]
+                const personAssignment = activeOp
+                  ? assignments.find((a: any) => a.user_id === req.user_id && a.operational_period_id === activeOp.id)
+                  : null
+                const approvals: any[] = req.demob_approvals ?? []
+                const approvedCount = approvals.filter((a: any) => a.approved_at).length
+                return (
+                  <div key={req.id} className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full bg-[#F59E0B] flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-[#E5E7EB]">{person?.full_name ?? 'Unknown'}</p>
+                        <p className="text-xs text-[#6B7280] mt-px">
+                          {personAssignment ? getPositionLabel(personAssignment.ics_position) : '—'}
+                        </p>
+                      </div>
+                      {approvals.length > 0 && (
+                        <span className="text-[10px] font-mono text-[#F59E0B] flex-shrink-0">
+                          {approvedCount}/{approvals.length} approved
+                        </span>
+                      )}
+                      {approvals.length === 0 && (
+                        <span className="text-[10px] font-mono text-[#6B7280] flex-shrink-0">no approvers</span>
+                      )}
+                    </div>
+                    {approvals.length > 0 && (
+                      <div className="flex gap-2 mt-2 pl-5 flex-wrap">
+                        {approvals.map((a: any) => (
+                          <span
+                            key={a.id}
+                            className={`text-[9px] font-mono px-1.5 py-0.5 rounded ${
+                              a.approved_at
+                                ? 'text-[#22C55E] bg-[#22C55E]/10'
+                                : 'text-[#F59E0B] bg-[#F59E0B]/10'
+                            }`}
+                          >
+                            {getPositionLabel(a.approver_position)} {a.approved_at ? '✓' : '…'}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        )}
 
         {/* 4 · PRIMARY CTA ──────────────────────────────────── */}
         {myAssignment && activeOp && (

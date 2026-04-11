@@ -14,6 +14,7 @@ import {
 } from '@/lib/ics-positions'
 import Link from 'next/link'
 import { activityStatus, fmtAgo, STATUS_DOT_COLOR, STATUS_LABEL, fetchLastEntryMap, type LastEntryMap } from '@/lib/accountability'
+import { PERSONNEL_STATUS_COLOR, PERSONNEL_STATUS_LABEL, PERSONNEL_STATUS_BG } from '@/lib/personnel-lifecycle'
 
 const UNIQUE_POSITIONS = new Set([
   'team_leader','group_supervisor','division_supervisor','branch_director',
@@ -75,6 +76,10 @@ export default function StaffPage() {
   // Toast
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
 
+  // Lifecycle state — check-ins and demob requests for this OP
+  const [checkins, setCheckins]           = useState<any[]>([])
+  const [demobRequests, setDemobRequests] = useState<any[]>([])
+
   // Drag overlay — custom floating card that follows the pointer
   const [dragOverlayData, setDragOverlayData] = useState<{ name: string; sub: string } | null>(null)
   // Overlay element ref — position updated via direct style mutation to avoid
@@ -127,6 +132,7 @@ export default function StaffPage() {
       { data: opData }, { data: pData }, { data: aData },
       { data: divData }, { data: grpData }, { data: teamData },
       { data: repData }, entryMap,
+      { data: checkinData }, { data: demobData },
     ] = await Promise.all([
       supabase.from('operational_periods').select('*').eq('id', opId).single(),
       supabase.from('profiles').select('*').eq('is_active', true).order('full_name'),
@@ -136,6 +142,8 @@ export default function StaffPage() {
       supabase.from('teams').select('*').eq('operational_period_id', opId),
       supabase.from('agency_reps').select('*').eq('operational_period_id', opId).order('created_at'),
       fetchLastEntryMap(supabase, opId),
+      supabase.from('personnel_checkins').select('*').eq('operational_period_id', opId),
+      supabase.from('demob_requests').select('*').eq('operational_period_id', opId),
     ])
     setOp(opData)
     setProfiles(pData ?? [])
@@ -146,6 +154,8 @@ export default function StaffPage() {
     setTeams(teamData ?? [])
     setAgencyReps(repData ?? [])
     setLastEntryMap(entryMap)
+    setCheckins(checkinData ?? [])
+    setDemobRequests(demobData ?? [])
     setLoading(false)
   }
 
@@ -155,13 +165,18 @@ export default function StaffPage() {
     [assignments]
   )
 
+  const checkinSet      = useMemo(() => new Set(checkins.map((c: any) => c.user_id)), [checkins])
+  const pendingDemobSet = useMemo(() => new Set(demobRequests.filter((r: any) => r.status === 'pending').map((r: any) => r.user_id)), [demobRequests])
+  const demobilizedSet  = useMemo(() => new Set(demobRequests.filter((r: any) => r.status === 'approved').map((r: any) => r.user_id)), [demobRequests])
+
   const staged = useMemo(() => {
     const q = stagingQuery.toLowerCase()
     return profiles.filter(p =>
       !assignedUserIds.has(p.id) &&
+      !demobilizedSet.has(p.id) &&
       (!q || p.full_name.toLowerCase().includes(q) || (p.default_agency ?? '').toLowerCase().includes(q))
     )
-  }, [profiles, assignedUserIds, stagingQuery])
+  }, [profiles, assignedUserIds, demobilizedSet, stagingQuery])
 
   const sysTeamIdMap = useMemo(() => {
     const m: Record<string, string> = {}
@@ -339,6 +354,17 @@ export default function StaffPage() {
     console.log('[DnD] createAssignment result', { data, error })
     if (error) { showToast(error.message, false); return false }
     setAssignments(prev => [...prev, data])
+    // Auto-check in when assigned — ensures lifecycle state is tracked
+    // even when check-in page wasn't used (backward-compatible)
+    supabase.from('personnel_checkins').upsert({
+      operational_period_id: opId,
+      event_id: eventId,
+      user_id: profileId,
+      checked_in_at: new Date().toISOString(),
+      checked_in_by: user!.id,
+    }, { onConflict: 'operational_period_id,user_id' }).select().single().then(({ data: ci }) => {
+      if (ci) setCheckins(prev => prev.some((c: any) => c.user_id === profileId) ? prev : [...prev, ci])
+    })
     showToast(`${p.full_name} → ${getPositionLabel(position)}`, true)
     return true
   }
@@ -405,6 +431,100 @@ export default function StaffPage() {
     if (error) { showToast(error.message, false); return }
     setAssignments(prev => prev.filter(a => a.id !== assignmentId))
     showToast(`${p?.full_name ?? 'Person'} returned to staging`, true)
+  }
+
+  async function performCheckin(userId: string) {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const { data, error } = await supabase.from('personnel_checkins').upsert({
+      operational_period_id: opId,
+      event_id: eventId,
+      user_id: userId,
+      checked_in_at: new Date().toISOString(),
+      checked_in_by: user.id,
+    }, { onConflict: 'operational_period_id,user_id' }).select().single()
+    if (error) { showToast(error.message, false); return }
+    if (data) setCheckins(prev => [...prev.filter((c: any) => c.user_id !== userId), data])
+    const p = profileMap[userId]
+    showToast(`${p?.full_name ?? 'Person'} checked in`, true)
+  }
+
+  async function performDemobRequest(userId: string, assignmentId: string) {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { data: demobReq, error: reqErr } = await supabase
+      .from('demob_requests')
+      .insert({
+        operational_period_id: opId,
+        event_id: eventId,
+        user_id: userId,
+        assignment_id: assignmentId,
+        requested_by: user.id,
+        status: 'pending',
+      })
+      .select().single()
+    if (reqErr) { showToast(reqErr.message, false); return }
+
+    // Look up required approver roles for this event
+    const { data: approverRoles } = await supabase
+      .from('event_demob_approver_roles')
+      .select('ics_position')
+      .eq('event_id', eventId)
+
+    const approvalInserts: any[] = []
+    const notifInserts: any[]    = []
+    const requestingPerson = profileMap[userId]
+    const requestingAssignment = assignments.find((a: any) => a.id === assignmentId)
+
+    for (const { ics_position } of (approverRoles ?? [])) {
+      const approverAssignment = assignments.find(
+        (a: any) => a.ics_position === ics_position && a.user_id !== userId
+      )
+      if (!approverAssignment) continue
+      approvalInserts.push({
+        demob_request_id: demobReq.id,
+        approver_position: ics_position,
+        approver_user_id: approverAssignment.user_id,
+      })
+      notifInserts.push({
+        user_id: approverAssignment.user_id,
+        event_id: eventId,
+        demob_request_id: demobReq.id,
+        title: `Demob approval needed`,
+        body: `${requestingPerson?.full_name ?? 'Unknown'} (${getPositionLabel(requestingAssignment?.ics_position ?? '')}) is requesting demobilization.`,
+        is_read: false,
+      })
+    }
+
+    if (approvalInserts.length === 0) {
+      // No approvers configured or none currently assigned — auto-approve
+      await supabase.from('demob_requests')
+        .update({ status: 'approved', completed_at: new Date().toISOString() })
+        .eq('id', demobReq.id)
+      await supabase.from('assignments').delete().eq('id', assignmentId)
+      setAssignments(prev => prev.filter((a: any) => a.id !== assignmentId))
+      setDemobRequests(prev => [...prev, { ...demobReq, status: 'approved' }])
+      showToast(`${requestingPerson?.full_name ?? 'Person'} demobilized`, true)
+      return
+    }
+
+    if (approvalInserts.length > 0) await supabase.from('demob_approvals').insert(approvalInserts)
+    if (notifInserts.length > 0)    await supabase.from('in_app_notifications').insert(notifInserts)
+
+    setDemobRequests(prev => [...prev, demobReq])
+    showToast(`Demob requested for ${requestingPerson?.full_name ?? 'Person'} · awaiting ${approvalInserts.length} approval(s)`, true)
+  }
+
+  async function cancelDemobRequest(userId: string) {
+    const req = demobRequests.find((r: any) => r.user_id === userId && r.status === 'pending')
+    if (!req) return
+    const supabase = createClient()
+    await supabase.from('demob_requests').update({ status: 'cancelled' }).eq('id', req.id)
+    setDemobRequests(prev => prev.map((r: any) => r.id === req.id ? { ...r, status: 'cancelled' } : r))
+    showToast('Demob request cancelled', true)
   }
 
   // ── DnD helpers ──────────────────────────────────────────────────
@@ -606,7 +726,8 @@ export default function StaffPage() {
 
   function FilledSlot({ label, assignment }: { label: string; assignment: any }) {
     const p = profileMap[assignment.user_id]
-    const isBeingDragged = draggingAssignmentId === assignment.id
+    const isBeingDragged  = draggingAssignmentId === assignment.id
+    const isPendingDemob  = pendingDemobSet.has(assignment.user_id)
     const status = activityStatus(assignment.user_id, lastEntryMap)
     const last   = lastEntryMap[assignment.user_id]
     return (
@@ -614,10 +735,10 @@ export default function StaffPage() {
         draggable
         onDragStart={e => dragStartAssignment(assignment.id, e)}
         onDragEnd={dragEnd}
-        className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors cursor-grab active:cursor-grabbing select-none ${
-          isBeingDragged
-            ? 'opacity-60 border-[#FF5A1F]/40 bg-[#FF5A1F]/5'
-            : 'bg-[#121821] border-[#232B36] hover:border-[#3a4555]'
+        className={`group flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors cursor-grab active:cursor-grabbing select-none ${
+          isBeingDragged  ? 'opacity-60 border-[#FF5A1F]/40 bg-[#FF5A1F]/5'
+          : isPendingDemob ? 'bg-[#F59E0B]/5 border-[#F59E0B]/30'
+          :                  'bg-[#121821] border-[#232B36] hover:border-[#3a4555]'
         }`}
       >
         <div className="w-6 h-6 rounded-full bg-[#1a2235] border border-[#232B36] flex items-center justify-center text-[10px] font-mono text-[#9CA3AF] flex-shrink-0">
@@ -629,6 +750,11 @@ export default function StaffPage() {
         </div>
         {assignment.dual_hatted && (
           <span className="text-[9px] font-bold text-[#F59E0B] bg-[#F59E0B]/10 px-1 py-px rounded font-mono flex-shrink-0">DH</span>
+        )}
+        {isPendingDemob && (
+          <span className="text-[9px] font-bold text-[#F59E0B] bg-[#F59E0B]/15 px-1.5 py-px rounded font-mono flex-shrink-0 ring-1 ring-[#F59E0B]/30">
+            Demob
+          </span>
         )}
         {/* Activity status — data-status attr exposes value for future sort */}
         <div className="flex-shrink-0 flex flex-col items-end gap-px" data-status={status}>
@@ -646,12 +772,27 @@ export default function StaffPage() {
           className="md:hidden text-[#6B7280] w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#232B36] flex-shrink-0 touch-manipulation text-base leading-none"
           title="Actions"
         >⋮</button>
-        {/* Desktop: × to remove directly */}
-        <button
-          onClick={e => { e.stopPropagation(); removeAssignment(assignment.id) }}
-          className="hidden md:flex text-[#374151] hover:text-red-400 transition-colors text-sm w-5 h-5 items-center justify-center rounded hover:bg-red-500/10 flex-shrink-0"
-          title="Return to staging"
-        >×</button>
+        {/* Desktop actions: demob request + return to staging */}
+        <div className="hidden md:flex items-center gap-0.5 flex-shrink-0">
+          {isPendingDemob ? (
+            <button
+              onClick={e => { e.stopPropagation(); cancelDemobRequest(assignment.user_id) }}
+              className="text-[#F59E0B] text-[9px] font-semibold px-1.5 py-0.5 rounded hover:bg-[#F59E0B]/15 transition-colors"
+              title="Cancel demob request"
+            >Cancel</button>
+          ) : (
+            <button
+              onClick={e => { e.stopPropagation(); performDemobRequest(assignment.user_id, assignment.id) }}
+              className="text-[#374151] hover:text-[#F59E0B] transition-colors w-5 h-5 flex items-center justify-center rounded hover:bg-[#F59E0B]/10 opacity-0 group-hover:opacity-100 text-xs"
+              title="Request demobilization"
+            >↓</button>
+          )}
+          <button
+            onClick={e => { e.stopPropagation(); removeAssignment(assignment.id) }}
+            className="text-[#374151] hover:text-red-400 transition-colors text-sm w-5 h-5 flex items-center justify-center rounded hover:bg-red-500/10"
+            title="Return to staging"
+          >×</button>
+        </div>
       </div>
     )
   }
@@ -945,6 +1086,16 @@ export default function StaffPage() {
                 {stagLast ? fmtAgo(stagLast) : (p.default_agency ?? p.role ?? '—')}
               </p>
             </div>
+            {/* Check-in badge / button */}
+            {checkinSet.has(p.id) ? (
+              <span className="text-[9px] font-bold text-[#22C55E] bg-[#22C55E]/10 px-1.5 py-px rounded font-mono flex-shrink-0">In</span>
+            ) : (
+              <button
+                onClick={e => { e.stopPropagation(); performCheckin(p.id) }}
+                className="text-[9px] font-medium text-[#374151] hover:text-[#22C55E] border border-[#232B36] hover:border-[#22C55E]/40 px-1.5 py-px rounded font-mono flex-shrink-0 transition-colors touch-manipulation"
+                title="Check in"
+              >Check In</button>
+            )}
             {/* Status dot — always shown so staging users are accounted for */}
             <div
               className="flex-shrink-0 flex flex-col items-center gap-px"
@@ -983,6 +1134,12 @@ export default function StaffPage() {
             <span className="text-xs font-semibold text-[#E5E7EB]">Staff — OP {op?.period_number}</span>
             <span className="text-[10px] text-[#4B5563] ml-2 font-mono">Command OS</span>
           </div>
+          <Link
+            href={`/events/${eventId}/op/${opId}/checkin`}
+            className="flex-shrink-0 text-xs text-[#6B7280] hover:text-[#E5E7EB] border border-[#232B36] hover:border-[#3a4555] px-2.5 py-1.5 rounded-lg transition-colors"
+          >
+            Check-In
+          </Link>
           <button
             className="md:hidden flex items-center gap-1.5 text-xs text-[#FF5A1F] bg-[#FF5A1F]/10 px-2.5 py-1.5 rounded-lg font-medium"
             onClick={() => setMobileStagingOpen(v => !v)}
@@ -1448,6 +1605,33 @@ export default function StaffPage() {
               <span className="text-base leading-none">↩</span>
               <span>Return to Staging</span>
             </button>
+
+            {/* Request Demob */}
+            {!pendingDemobSet.has(mobileActionSheet.assignment.user_id) ? (
+              <button
+                onClick={async () => {
+                  const { assignment } = mobileActionSheet
+                  setMobileActionSheet(null)
+                  await performDemobRequest(assignment.user_id, assignment.id)
+                }}
+                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-[#121821] border border-[#232B36] text-sm text-[#F59E0B] hover:border-[#F59E0B]/30 active:bg-[#F59E0B]/5 transition-colors touch-manipulation"
+              >
+                <span className="text-base leading-none">↓</span>
+                <span>Request Demobilization</span>
+              </button>
+            ) : (
+              <button
+                onClick={async () => {
+                  const { assignment } = mobileActionSheet
+                  setMobileActionSheet(null)
+                  await cancelDemobRequest(assignment.user_id)
+                }}
+                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-[#121821] border border-[#F59E0B]/20 text-sm text-[#F59E0B] hover:border-[#F59E0B]/40 active:bg-[#F59E0B]/5 transition-colors touch-manipulation"
+              >
+                <span className="text-base leading-none">✕</span>
+                <span>Cancel Demob Request</span>
+              </button>
+            )}
 
             {/* Cancel */}
             <button
