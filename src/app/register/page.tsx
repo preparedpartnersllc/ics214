@@ -10,7 +10,7 @@ import { AuthLayout } from '@/components/auth/AuthLayout'
 import { FormField } from '@/components/ui/FormField'
 import { Button } from '@/components/ui/Button'
 
-type ErrorCode = 'email_exists' | 'rate_limit' | 'unknown' | null
+type ErrorCode = 'email_exists' | 'rate_limit' | 'profile_save_failed' | 'unknown' | null
 
 export default function RegisterPage() {
   const [serverError, setServerError] = useState<string | null>(null)
@@ -81,10 +81,12 @@ export default function RegisterPage() {
         </FormField>
 
         {/* ── Error + recovery UI ── */}
+
+        {/* TRUE DUPLICATE — confirmed email already exists */}
         {serverError && errorCode === 'email_exists' && (
           <div className="rounded-xl border border-[#F59E0B]/30 bg-[#F59E0B]/5 p-4 space-y-3">
             <p className="text-sm font-semibold text-[#F59E0B]">
-              This email may already have an account.
+              This email already has an account.
             </p>
             <ul className="space-y-2">
               <li>
@@ -100,7 +102,6 @@ export default function RegisterPage() {
                   href="/login"
                   className="flex items-center gap-2 text-sm text-[#E5E7EB] hover:text-white transition-colors"
                   onClick={() => {
-                    // Pass a hint so the login page can pre-open the forgot form
                     sessionStorage?.setItem('open_forgot', '1')
                   }}
                 >
@@ -118,6 +119,27 @@ export default function RegisterPage() {
           </div>
         )}
 
+        {/* PROFILE SAVE FAILED — auth account may have been created, profile setup failed */}
+        {serverError && errorCode === 'profile_save_failed' && (
+          <div className="rounded-xl border border-[#F59E0B]/30 bg-[#F59E0B]/5 p-4 space-y-2">
+            <p className="text-sm font-semibold text-[#F59E0B]">
+              Account setup incomplete
+            </p>
+            <p className="text-xs text-[#9CA3AF]">
+              Your login account may have been created, but your profile setup did not finish.
+              Try signing in — if that works you're all set. If not, you can try creating your
+              account again.
+            </p>
+            <Link
+              href="/login"
+              className="flex items-center gap-2 text-sm text-[#E5E7EB] hover:text-white transition-colors pt-1"
+            >
+              <span className="text-[#22C55E]">→</span> Try signing in
+            </Link>
+          </div>
+        )}
+
+        {/* RATE LIMIT */}
         {serverError && errorCode === 'rate_limit' && (
           <div className="rounded-xl border border-[#EF4444]/30 bg-[#EF4444]/5 p-3">
             <p className="text-sm text-[#EF4444]">
@@ -126,8 +148,14 @@ export default function RegisterPage() {
           </div>
         )}
 
+        {/* GENERIC FAILURE — don't show raw DB errors */}
         {serverError && errorCode === 'unknown' && (
-          <p className="text-sm text-red-400">{serverError}</p>
+          <div className="rounded-xl border border-[#EF4444]/30 bg-[#EF4444]/5 p-3">
+            <p className="text-sm text-[#EF4444]">
+              We couldn't finish creating your account. Please try again or contact
+              your administrator if the problem continues.
+            </p>
+          </div>
         )}
 
         <Button type="submit" loading={isSubmitting} className="w-full">

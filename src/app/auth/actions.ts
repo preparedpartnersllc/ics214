@@ -48,29 +48,65 @@ export async function register(formData: {
 
   if (error) {
     const msg = error.message.toLowerCase()
-    // "Database error saving new user" typically means the email is already
-    // registered (auth user exists). Guide the user to sign in instead.
+    console.error('[register] signUp error:', error.message, '| email:', formData.email)
+
+    // Explicit duplicate-email signals from GoTrue (email confirmation disabled path)
     if (
-      msg.includes('database error') ||
       msg.includes('already registered') ||
       msg.includes('already exists') ||
       msg.includes('user already')
     ) {
       return { error: error.message, code: 'email_exists' as const }
     }
+
+    // Rate limiting
     if (msg.includes('rate limit') || msg.includes('too many')) {
       return { error: error.message, code: 'rate_limit' as const }
     }
+
+    // "Database error saving new user" fires when the handle_new_user trigger
+    // fails — this is a server-side profile/trigger failure, NOT a duplicate
+    // email. Do NOT map this to email_exists. The auth user may or may not have
+    // been created; instruct the user to try signing in first, then retry.
+    if (msg.includes('database error')) {
+      console.error('[register] handle_new_user trigger failure for email:', formData.email)
+      return { error: error.message, code: 'profile_save_failed' as const }
+    }
+
     return { error: error.message, code: 'unknown' as const }
   }
 
-  if (!data.user) return { error: 'Registration failed', code: 'unknown' as const }
+  // ── Silent duplicate detection ────────────────────────────────────────────
+  // When email confirmation is enabled Supabase returns a fake success with
+  // identities: [] instead of an error (prevents email enumeration). Detect
+  // this and show the real recovery UI.
+  if (data.user?.identities?.length === 0) {
+    console.error('[register] silent duplicate detected for email:', formData.email)
+    return {
+      error: 'An account with this email already exists.',
+      code: 'email_exists' as const,
+    }
+  }
 
-  await supabase.from('profiles').update({
+  if (!data.user) {
+    console.error('[register] signUp returned no user and no error for email:', formData.email)
+    return { error: 'Registration failed. Please try again.', code: 'unknown' as const }
+  }
+
+  // ── Complete profile setup ─────────────────────────────────────────────────
+  // handle_new_user trigger created the profile row on auth.users INSERT.
+  // Now fill in the optional fields the trigger doesn't know about.
+  const { error: profileErr } = await supabase.from('profiles').update({
     default_agency: formData.default_agency ?? null,
     default_unit: formData.default_unit ?? null,
     timezone: formData.timezone ?? 'America/Detroit',
   }).eq('id', data.user.id)
+
+  if (profileErr) {
+    // Auth user was created successfully. Profile extras are non-blocking —
+    // the user can update them later. Log it but don't strand them.
+    console.error('[register] profile update failed for user:', data.user.id, '|', profileErr.message)
+  }
 
   redirect('/dashboard')
 }
