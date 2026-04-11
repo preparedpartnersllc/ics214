@@ -11,7 +11,7 @@ import {
 } from '@/lib/ics-positions'
 import Link from 'next/link'
 import { activityStatus, fmtAgo, STATUS_DOT_COLOR, STATUS_LABEL, fetchLastEntryMap, type LastEntryMap } from '@/lib/accountability'
-import { SECTION_COLORS } from '@/lib/section-colors'
+import { SECTION_COLORS, badgeColorForPosition } from '@/lib/section-colors'
 
 // ── Section helpers ──────────────────────────────────────────────
 const CMD_POS = new Set([
@@ -483,7 +483,8 @@ export default function RosterPage() {
     const phoneNormalized = p?.phone_normalized ?? null
     const phoneDisplay    = p?.phone ?? phoneNormalized ?? null
     const unit = showUnit ? getUnitLabel(a) : ''
-    const roleTag = ROLE_TAG[a.ics_position]
+    const roleTag   = ROLE_TAG[a.ics_position]
+    const badgeColor = roleTag ? badgeColorForPosition(a.ics_position) : null
     const unitContext = unit && unit !== 'Command Staff' && unit !== 'Planning Section'
       && unit !== 'Logistics Section' && unit !== 'Finance / Admin' ? unit : ''
     return (
@@ -497,10 +498,10 @@ export default function RosterPage() {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 min-w-0">
             <p className="text-sm font-medium text-[#E5E7EB] truncate">{name}</p>
-            {roleTag && (
+            {roleTag && badgeColor && (
               <span
                 className="text-[10px] font-bold px-1.5 py-px rounded flex-shrink-0 font-mono"
-                style={{ color: roleTag.color, backgroundColor: roleTag.color + '18' }}
+                style={{ color: badgeColor, backgroundColor: badgeColor + '18' }}
               >
                 {roleTag.tag}
               </span>
@@ -531,24 +532,12 @@ export default function RosterPage() {
           ⇄
         </button>
 
-        {/* Activity status — data-status attr exposes value for future sort */}
+        {/* Status dot — text label removed for mobile cleanliness; data-status kept for sort */}
         {(() => {
           const status = activityStatus(a.user_id, lastEntryMap)
-          const last = lastEntryMap[a.user_id]
           return (
-            <div
-              className="flex-shrink-0 flex flex-col items-end gap-px"
-              data-status={status}
-            >
-              <div className="flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: STATUS_DOT_COLOR[status] }} />
-                <span className="text-[10px] font-semibold leading-none" style={{ color: STATUS_DOT_COLOR[status] }}>
-                  {STATUS_LABEL[status]}
-                </span>
-              </div>
-              {last && (
-                <p className="text-[10px] text-[#4B5563] leading-none text-right">{fmtAgo(last)}</p>
-              )}
+            <div className="flex-shrink-0 flex items-center" data-status={status}>
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: STATUS_DOT_COLOR[status] }} />
             </div>
           )
         })()}
