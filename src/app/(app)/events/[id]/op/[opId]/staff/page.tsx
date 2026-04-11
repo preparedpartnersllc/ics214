@@ -930,8 +930,9 @@ export default function StaffPage() {
 
           {/* Command */}
           <div className="rounded-xl border border-[#232B36] overflow-hidden">
-            <div className="px-4 py-2.5 bg-[#161D26]">
-              <p className="text-xs font-bold text-[#9CA3AF] uppercase tracking-widest">Command</p>
+            <div className="px-4 py-2.5 bg-[#161D26] flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-[#9CA3AF] flex-shrink-0" />
+              <span className="text-xs font-bold text-[#9CA3AF] uppercase tracking-widest">Command</span>
             </div>
             <div className="px-4 py-3 grid grid-cols-1 sm:grid-cols-2 gap-2 bg-[#0f1419]/30">
               {COMMAND_SLOTS.map(slot => {
@@ -1095,24 +1096,34 @@ export default function StaffPage() {
 
           {/* Operations */}
           <div className="space-y-3">
-            <div className="flex items-center gap-1.5 px-1">
-              <p className="text-[10px] font-mono text-[#4B5563] uppercase tracking-widest flex-1">Operations</p>
-              {hasOpsStructure && (
-                <>
-                  <button onClick={() => { setShowAddUnit('division'); setAddingUnitName('') }}
-                    className="text-[10px] text-[#374151] hover:text-[#38BDF8] font-mono px-1.5 py-0.5 rounded hover:bg-[#38BDF8]/10 transition-colors">
-                    + Division
-                  </button>
-                  <button onClick={() => { setShowAddUnit('branch'); setAddingUnitName('') }}
-                    className="text-[10px] text-[#374151] hover:text-[#F97316] font-mono px-1.5 py-0.5 rounded hover:bg-[#F97316]/10 transition-colors">
-                    + Branch
-                  </button>
-                </>
-              )}
-              <button onClick={() => { setShowAddGroup(true); setAddingGroupName('') }}
-                className="text-[10px] text-[#374151] hover:text-[#FF5A1F] font-mono px-1.5 py-0.5 rounded hover:bg-[#FF5A1F]/10 transition-colors">
-                + Group
-              </button>
+            <div className="rounded-xl border border-[#232B36] overflow-hidden">
+              <div className="px-4 py-2.5 bg-[#161D26] flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-[#EF4444] flex-shrink-0" />
+                <span className="text-xs font-bold text-[#9CA3AF] uppercase tracking-widest flex-1">Operations</span>
+                {/* Group always first — most frequent */}
+                <button
+                  onClick={() => { setShowAddGroup(true); setAddingGroupName('') }}
+                  className="text-[10px] font-medium text-[#9CA3AF] bg-[#1a2235] border border-[#2d3a4a] hover:border-[#FF5A1F]/50 hover:text-[#FF5A1F] px-2 py-1 rounded-md transition-colors"
+                >
+                  + Group
+                </button>
+                {hasOpsStructure && (
+                  <>
+                    <button
+                      onClick={() => { setShowAddUnit('division'); setAddingUnitName('') }}
+                      className="text-[10px] font-medium text-[#9CA3AF] bg-[#1a2235] border border-[#2d3a4a] hover:border-[#38BDF8]/50 hover:text-[#38BDF8] px-2 py-1 rounded-md transition-colors"
+                    >
+                      + Division
+                    </button>
+                    <button
+                      onClick={() => { setShowAddUnit('branch'); setAddingUnitName('') }}
+                      className="text-[10px] font-medium text-[#9CA3AF] bg-[#1a2235] border border-[#2d3a4a] hover:border-[#F97316]/50 hover:text-[#F97316] px-2 py-1 rounded-md transition-colors"
+                    >
+                      + Branch
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
 
             {showAddUnit && (
@@ -1187,7 +1198,11 @@ export default function StaffPage() {
               label={sec.label}
               sysKey={sec.sysKey}
               positions={sec.positions}
-              color={sec.key === 'planning' ? '#3B82F6' : sec.key === 'logistics' ? '#8B5CF6' : '#6B7280'}
+              color={
+                sec.key === 'planning'  ? '#EAB308' :  // yellow
+                sec.key === 'logistics' ? '#3B82F6' :  // blue
+                                          '#22C55E'    // green (finance)
+              }
             />
           ))}
 
