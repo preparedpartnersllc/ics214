@@ -52,7 +52,7 @@ export default function NewOperationalPeriodPage() {
       .single()
 
     if (err) { setError(err.message); return }
-    router.push(`/events/${eventId}/op/${op.id}/stage`)
+    router.push(`/events/${eventId}/op/${op.id}/staff`)
   }
 
   return (

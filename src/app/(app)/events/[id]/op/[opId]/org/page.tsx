@@ -6,5 +6,5 @@ export default async function OrgPageRedirect({
   params: Promise<{ id: string; opId: string }>
 }) {
   const { id, opId } = await params
-  redirect(`/events/${id}/op/${opId}/stage`)
+  redirect(`/events/${id}/op/${opId}/staff`)
 }
