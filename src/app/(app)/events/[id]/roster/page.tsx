@@ -11,6 +11,7 @@ import {
 } from '@/lib/ics-positions'
 import Link from 'next/link'
 import { activityStatus, fmtAgo, STATUS_DOT_COLOR, STATUS_LABEL, fetchLastEntryMap, type LastEntryMap } from '@/lib/accountability'
+import { SECTION_COLORS } from '@/lib/section-colors'
 
 // ── Section helpers ──────────────────────────────────────────────
 const CMD_POS = new Set([
@@ -367,7 +368,7 @@ export default function RosterPage() {
     const cmdItems = assignments.filter(a => CMD_POS.has(a.ics_position))
       .sort((a, b) => leaderRank(a.ics_position) - leaderRank(b.ics_position))
     if (cmdItems.length > 0) {
-      result.push({ key: 'cmd', label: 'Command', color: '#F59E0B', items: cmdItems })
+      result.push({ key: 'cmd', label: 'Command', color: SECTION_COLORS.command, items: cmdItems })
     }
 
     // Operations — build the tree as flat rows with depth info
@@ -448,19 +449,19 @@ export default function RosterPage() {
       })
 
       if (opsItems.length > 0) {
-        result.push({ key: 'ops', label: 'Operations', color: '#22C55E', items: opsItems })
+        result.push({ key: 'ops', label: 'Operations', color: SECTION_COLORS.operations, items: opsItems })
       }
     }
 
     // Staff sections
     const planItems = sysAssignments('__planning__')
-    if (planItems.length > 0) result.push({ key: 'pln', label: 'Planning', color: '#3B82F6', items: planItems })
+    if (planItems.length > 0) result.push({ key: 'pln', label: 'Planning', color: SECTION_COLORS.planning, items: planItems })
 
     const logItems = sysAssignments('__logistics__')
-    if (logItems.length > 0) result.push({ key: 'log', label: 'Logistics', color: '#8B5CF6', items: logItems })
+    if (logItems.length > 0) result.push({ key: 'log', label: 'Logistics', color: SECTION_COLORS.logistics, items: logItems })
 
     const finItems = sysAssignments('__finance__')
-    if (finItems.length > 0) result.push({ key: 'fin', label: 'Finance / Admin', color: '#6B7280', items: finItems })
+    if (finItems.length > 0) result.push({ key: 'fin', label: 'Finance / Admin', color: SECTION_COLORS.finance, items: finItems })
 
     return result
   }, [isFiltered, assignments, teams, groups, divisions, sysTeamIdMap, profileMap])
@@ -634,11 +635,11 @@ export default function RosterPage() {
         {/* ── Stats bar ── */}
         {!opLoading && selectedOp && (() => {
           const SECTION_DEFS = [
-            { label: 'CMD', section: 'Command'    as FilterSection, set: CMD_POS, color: '#F59E0B' },
-            { label: 'OPS', section: 'Operations' as FilterSection, set: OPS_POS, color: '#22C55E' },
-            { label: 'PLN', section: 'Planning'   as FilterSection, set: PLN_POS, color: '#3B82F6' },
-            { label: 'LOG', section: 'Logistics'  as FilterSection, set: LOG_POS, color: '#8B5CF6' },
-            { label: 'FIN', section: 'Finance'    as FilterSection, set: FIN_POS, color: '#6B7280' },
+            { label: 'CMD', section: 'Command'    as FilterSection, set: CMD_POS, color: SECTION_COLORS.command    },
+            { label: 'OPS', section: 'Operations' as FilterSection, set: OPS_POS, color: SECTION_COLORS.operations },
+            { label: 'PLN', section: 'Planning'   as FilterSection, set: PLN_POS, color: SECTION_COLORS.planning   },
+            { label: 'LOG', section: 'Logistics'  as FilterSection, set: LOG_POS, color: SECTION_COLORS.logistics  },
+            { label: 'FIN', section: 'Finance'    as FilterSection, set: FIN_POS, color: SECTION_COLORS.finance    },
           ]
           const counts = SECTION_DEFS.map(s => ({
             ...s, count: assignments.filter(a => s.set.has(a.ics_position)).length,
