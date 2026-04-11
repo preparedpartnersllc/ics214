@@ -13,8 +13,9 @@ export default function CheckInPage() {
 
   const [op, setOp]           = useState<any>(null)
   const [event, setEvent]     = useState<any>(null)
-  const [profiles, setProfiles] = useState<any[]>([])
-  const [checkins, setCheckins] = useState<any[]>([])
+  const [profiles, setProfiles]     = useState<any[]>([])
+  const [checkins, setCheckins]     = useState<any[]>([])
+  const [assignments, setAssignments] = useState<any[]>([])
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [loading, setLoading]   = useState(true)
   const [query, setQuery]       = useState('')
@@ -27,12 +28,13 @@ export default function CheckInPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    const [{ data: opData }, { data: evData }, { data: pData }, { data: cData }] =
+    const [{ data: opData }, { data: evData }, { data: pData }, { data: cData }, { data: aData }] =
       await Promise.all([
         supabase.from('operational_periods').select('*').eq('id', opId).single(),
         supabase.from('events').select('*').eq('id', eventId).single(),
         supabase.from('profiles').select('*').eq('is_active', true).order('full_name'),
         supabase.from('personnel_checkins').select('*').eq('operational_period_id', opId),
+        supabase.from('assignments').select('*').eq('operational_period_id', opId),
       ])
 
     setCurrentUser(user)
@@ -40,6 +42,7 @@ export default function CheckInPage() {
     setEvent(evData)
     setProfiles(pData ?? [])
     setCheckins(cData ?? [])
+    setAssignments(aData ?? [])
     setLoading(false)
   }
 
@@ -70,12 +73,18 @@ export default function CheckInPage() {
     setCheckins(prev => prev.filter(c => c.user_id !== userId))
   }
 
-  const checkinMap = new Map(checkins.map(c => [c.user_id, c]))
+  const checkinMap    = new Map(checkins.map(c => [c.user_id, c]))
+  const assignedSet   = new Set(assignments.map((a: any) => a.user_id as string))
   const checkedInCount = checkins.length
   const q = query.toLowerCase()
   const filtered = profiles.filter(p =>
     !q || p.full_name.toLowerCase().includes(q) || (p.default_agency ?? '').toLowerCase().includes(q)
   )
+  // Preassigned (assigned but not yet checked in) float to top
+  const sorted = [
+    ...filtered.filter(p => assignedSet.has(p.id) && !checkinMap.has(p.id)),
+    ...filtered.filter(p => !(assignedSet.has(p.id) && !checkinMap.has(p.id))),
+  ]
 
   if (loading) return (
     <div className="min-h-screen bg-[#0B0F14] flex items-center justify-center">
@@ -136,25 +145,37 @@ export default function CheckInPage() {
 
         {/* Person list */}
         <div className="bg-[#161D26] border border-[#232B36] rounded-2xl overflow-hidden divide-y divide-[#232B36]/60">
-          {filtered.length === 0 && (
+          {sorted.length === 0 && (
             <p className="text-sm text-[#6B7280] text-center py-10">No personnel found</p>
           )}
-          {filtered.map(p => {
-            const checkin = checkinMap.get(p.id)
-            const isSaving = saving === p.id
+          {sorted.map(p => {
+            const checkin       = checkinMap.get(p.id)
+            const isPreassigned = assignedSet.has(p.id) && !checkin
+            const isSaving      = saving === p.id
             return (
-              <div key={p.id} className="flex items-center gap-3 px-4 py-3">
+              <div key={p.id} className={`flex items-center gap-3 px-4 py-3 ${isPreassigned ? 'bg-[#8B5CF6]/5' : ''}`}>
                 {/* Status dot */}
-                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${checkin ? 'bg-[#22C55E]' : 'bg-[#374151]'}`} />
+                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                  checkin        ? 'bg-[#22C55E]'
+                  : isPreassigned ? 'bg-[#8B5CF6]'
+                  :                 'bg-[#374151]'
+                }`} />
 
                 {/* Avatar */}
                 <div className="w-8 h-8 rounded-full bg-[#121821] border border-[#232B36] flex items-center justify-center text-xs font-mono text-[#9CA3AF] flex-shrink-0">
                   {getInitials(p.full_name)}
                 </div>
 
-                {/* Name + agency */}
+                {/* Name + agency + badge */}
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-[#E5E7EB] truncate">{p.full_name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-[#E5E7EB] truncate">{p.full_name}</p>
+                    {isPreassigned && (
+                      <span className="flex-shrink-0 text-[9px] font-bold font-mono text-[#8B5CF6] bg-[#8B5CF6]/12 border border-[#8B5CF6]/25 px-1.5 py-px rounded uppercase tracking-wide">
+                        Preassigned
+                      </span>
+                    )}
+                  </div>
                   {checkin ? (
                     <p className="text-xs text-[#22C55E] leading-tight mt-px">
                       Checked in {new Date(checkin.checked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -177,7 +198,11 @@ export default function CheckInPage() {
                   <button
                     onClick={() => checkIn(p.id)}
                     disabled={isSaving}
-                    className="flex-shrink-0 text-xs font-semibold text-[#22C55E] bg-[#22C55E]/10 hover:bg-[#22C55E]/20 border border-[#22C55E]/20 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                    className={`flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 ${
+                      isPreassigned
+                        ? 'text-[#8B5CF6] bg-[#8B5CF6]/10 hover:bg-[#8B5CF6]/20 border border-[#8B5CF6]/30'
+                        : 'text-[#22C55E] bg-[#22C55E]/10 hover:bg-[#22C55E]/20 border border-[#22C55E]/20'
+                    }`}
                   >
                     {isSaving ? '…' : 'Check In'}
                   </button>

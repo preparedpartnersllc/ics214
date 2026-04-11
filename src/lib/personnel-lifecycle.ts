@@ -15,14 +15,16 @@
 // if later unassigned rather than "Not checked in".
 
 export type PersonnelStatus =
-  | 'not_checked_in'  // no check-in record for this OP
+  | 'not_checked_in'  // no check-in record, no assignment
+  | 'preassigned'     // assigned to a slot but not yet physically checked in
   | 'staging'         // checked in, no active assignment
-  | 'assigned'        // checked in + active assignment
+  | 'assigned'        // checked in + active assignment (physically present)
   | 'pending_demob'   // active demob_request with status='pending'
   | 'demobilized'     // demob_request.status='approved', fully released
 
 export const PERSONNEL_STATUS_LABEL: Record<PersonnelStatus, string> = {
   not_checked_in: 'Not checked in',
+  preassigned:    'Preassigned',
   staging:        'Staging',
   assigned:       'Assigned',
   pending_demob:  'Pending demob',
@@ -31,14 +33,16 @@ export const PERSONNEL_STATUS_LABEL: Record<PersonnelStatus, string> = {
 
 export const PERSONNEL_STATUS_COLOR: Record<PersonnelStatus, string> = {
   not_checked_in: '#4B5563',  // muted gray
+  preassigned:    '#8B5CF6',  // violet-500 — planned but not present
   staging:        '#3B82F6',  // blue-500
   assigned:       '#22C55E',  // green-500
-  pending_demob:  '#F59E0B',  // amber-500 — visible but not alarming
+  pending_demob:  '#F59E0B',  // amber-500
   demobilized:    '#6B7280',  // gray-500
 }
 
 export const PERSONNEL_STATUS_BG: Record<PersonnelStatus, string> = {
   not_checked_in: '#4B556318',
+  preassigned:    '#8B5CF618',
   staging:        '#3B82F618',
   assigned:       '#22C55E18',
   pending_demob:  '#F59E0B18',
@@ -47,7 +51,13 @@ export const PERSONNEL_STATUS_BG: Record<PersonnelStatus, string> = {
 
 /**
  * Derive the display status for a person in a given OP.
- * Priority: demob states override everything, then assignment, then check-in.
+ *
+ * Priority (highest to lowest):
+ *   demob states → pending_demob/demobilized
+ *   assigned + checked in → assigned (physically present)
+ *   assigned + NOT checked in → preassigned (slot held, not yet arrived)
+ *   checked in + no assignment → staging
+ *   neither → not_checked_in
  */
 export function derivePersonnelStatus(
   userId: string,
@@ -58,7 +68,7 @@ export function derivePersonnelStatus(
 ): PersonnelStatus {
   if (demobilizedSet.has(userId))  return 'demobilized'
   if (pendingDemobSet.has(userId)) return 'pending_demob'
-  if (assignedSet.has(userId))     return 'assigned'
+  if (assignedSet.has(userId))     return checkinSet.has(userId) ? 'assigned' : 'preassigned'
   if (checkinSet.has(userId))      return 'staging'
   return 'not_checked_in'
 }

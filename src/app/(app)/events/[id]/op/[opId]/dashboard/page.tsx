@@ -166,12 +166,13 @@ export default function DashboardPage() {
 
   // Summary counts
   const counts = useMemo(() => {
-    let notIn = 0, staging = 0, assigned = 0, pendingDemob = 0, demobilized = 0
+    let notIn = 0, preassigned = 0, staging = 0, assigned = 0, pendingDemob = 0, demobilized = 0
     profiles.forEach(p => {
       const s = lifecycleByUserId[p.id]
-      if (s === 'not_checked_in') notIn++
-      else if (s === 'staging')    staging++
-      else if (s === 'assigned')   assigned++
+      if (s === 'not_checked_in')  notIn++
+      else if (s === 'preassigned')   preassigned++
+      else if (s === 'staging')       staging++
+      else if (s === 'assigned')      assigned++
       else if (s === 'pending_demob') pendingDemob++
       else if (s === 'demobilized')   demobilized++
     })
@@ -182,7 +183,7 @@ export default function DashboardPage() {
         const total = (r.demob_approvals ?? []).length
         return sum + (total - done)
       }, 0)
-    return { notIn, staging, assigned, pendingDemob, demobilized, pendingApprovals }
+    return { notIn, preassigned, staging, assigned, pendingDemob, demobilized, pendingApprovals }
   }, [profiles, lifecycleByUserId, demobRequests])
 
   // Accountability breakdown (assigned + staging people only)
@@ -191,7 +192,7 @@ export default function DashboardPage() {
     const active: AcctRow[] = [], warning: AcctRow[] = [], noLog: AcctRow[] = []
     profiles.forEach(p => {
       const lc = lifecycleByUserId[p.id]
-      if (lc === 'not_checked_in' || lc === 'demobilized') return
+      if (lc === 'not_checked_in' || lc === 'preassigned' || lc === 'demobilized') return
       const st = activityStatus(p.id, lastEntryMap)
       const assignment = assignments.find((a: any) => a.user_id === p.id)
       const row: AcctRow = { profile: p, status: st, last: lastEntryMap[p.id], assignment, lc }
@@ -311,12 +312,13 @@ export default function DashboardPage() {
         {/* ── PART 2: SUMMARY CARDS ────────────────────────────── */}
         <div>
           <SectionHeader label="Personnel status" />
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-            <StatCard label="Not In"     value={counts.notIn}          color="#EF4444" />
-            <StatCard label="Staging"    value={counts.staging}        color="#3B82F6" />
-            <StatCard label="Assigned"   value={counts.assigned}       color="#22C55E" />
-            <StatCard label="Pend Demob" value={counts.pendingDemob}   color="#F59E0B" />
-            <StatCard label="Demobilized" value={counts.demobilized}   color="#6B7280" />
+          <div className="grid grid-cols-3 sm:grid-cols-7 gap-2">
+            <StatCard label="Not In"      value={counts.notIn}          color="#EF4444" />
+            <StatCard label="Preassigned" value={counts.preassigned}    color="#8B5CF6" />
+            <StatCard label="Staging"     value={counts.staging}        color="#3B82F6" />
+            <StatCard label="Assigned"    value={counts.assigned}       color="#22C55E" />
+            <StatCard label="Pend Demob"  value={counts.pendingDemob}   color="#F59E0B" />
+            <StatCard label="Demobilized" value={counts.demobilized}    color="#6B7280" />
             <StatCard
               label="Pend Approvals"
               value={counts.pendingApprovals}

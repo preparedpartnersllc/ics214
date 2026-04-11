@@ -426,17 +426,6 @@ export default function StaffPage() {
     setSaving(false)
     if (error) { showToast(error.message, false); return false }
     setAssignments(prev => [...prev, data])
-    // Auto-check in when assigned — ensures lifecycle state is tracked
-    // even when check-in page wasn't used (backward-compatible)
-    supabase.from('personnel_checkins').upsert({
-      operational_period_id: opId,
-      event_id: eventId,
-      user_id: profileId,
-      checked_in_at: new Date().toISOString(),
-      checked_in_by: user!.id,
-    }, { onConflict: 'operational_period_id,user_id' }).select().single().then(({ data: ci }) => {
-      if (ci) setCheckins(prev => prev.some((c: any) => c.user_id === profileId) ? prev : [...prev, ci])
-    })
     showToast(`${p.full_name} → ${getPositionLabel(position)}`, true)
     return true
   }
@@ -797,6 +786,7 @@ export default function StaffPage() {
     const p = profileMap[assignment.user_id]
     const isBeingDragged = draggingAssignmentId === assignment.id
     const isPendingDemob = pendingDemobSet.has(assignment.user_id)
+    const isPreassigned  = !checkinSet.has(assignment.user_id) && !isPendingDemob
     const actStatus      = activityStatus(assignment.user_id, lastEntryMap)
     const last           = lastEntryMap[assignment.user_id]
 
@@ -861,7 +851,55 @@ export default function StaffPage() {
       )
     }
 
-    // ── Normal assigned slot ──────────────────────────────────────
+    // ── Preassigned slot (assigned, not yet checked in) ──────────────
+    if (isPreassigned) {
+      return (
+        <div
+          draggable
+          onDragStart={e => dragStartAssignment(assignment.id, e)}
+          onDragEnd={dragEnd}
+          className={`group flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors cursor-grab active:cursor-grabbing select-none ${
+            isBeingDragged
+              ? 'opacity-60 border-[#8B5CF6]/40 bg-[#8B5CF6]/5'
+              : 'bg-[#0f0f1a] border-[#8B5CF6]/25 hover:border-[#8B5CF6]/50'
+          }`}
+        >
+          <div className="w-6 h-6 rounded-full bg-[#13102a] border border-[#8B5CF6]/20 flex items-center justify-center text-[10px] font-mono text-[#6B5FA6] flex-shrink-0">
+            {getInitials(p?.full_name ?? '?')}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-[#9CA3AF] truncate">{p?.full_name ?? 'Unknown'}</p>
+            <p className="text-[10px] text-[#374151] leading-none mt-px">{label}</p>
+          </div>
+          {assignment.dual_hatted && (
+            <span className="text-[9px] font-bold text-[#F59E0B] bg-[#F59E0B]/10 px-1 py-px rounded font-mono flex-shrink-0">DH</span>
+          )}
+          {/* Preassigned badge */}
+          <span className="text-[9px] font-bold text-[#8B5CF6] bg-[#8B5CF6]/12 border border-[#8B5CF6]/25 px-1.5 py-px rounded font-mono flex-shrink-0">
+            Preassigned
+          </span>
+          {/* Check In shortcut */}
+          <button
+            onClick={e => { e.stopPropagation(); performCheckin(assignment.user_id) }}
+            className="hidden md:flex flex-shrink-0 text-[9px] font-semibold text-[#3B82F6] bg-[#3B82F6]/10 hover:bg-[#3B82F6]/20 border border-[#3B82F6]/20 px-1.5 py-px rounded font-mono transition-colors opacity-0 group-hover:opacity-100"
+            title="Check in now"
+          >Check In</button>
+          {/* Mobile action sheet */}
+          <button
+            onClick={e => { e.stopPropagation(); setMobileActionSheet({ assignment, profile: p }) }}
+            className="md:hidden text-[#6B5FA6] w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#8B5CF6]/10 flex-shrink-0 touch-manipulation text-base leading-none"
+          >⋮</button>
+          {/* Desktop: remove */}
+          <button
+            onClick={e => { e.stopPropagation(); removeAssignment(assignment.id) }}
+            className="hidden md:flex text-[#374151] hover:text-red-400 transition-colors text-sm w-5 h-5 items-center justify-center rounded hover:bg-red-500/10 opacity-0 group-hover:opacity-100"
+            title="Remove preassignment"
+          >×</button>
+        </div>
+      )
+    }
+
+    // ── Normal assigned slot (checked in + assigned) ──────────────
     return (
       <div
         draggable
@@ -1233,7 +1271,7 @@ export default function StaffPage() {
           )
         })}
 
-        {/* ── Not checked in: check-in only, not draggable ── */}
+        {/* ── Not checked in: draggable for preassignment, check-in button ── */}
         {notCheckedIn.length > 0 && (
           <div className="mt-3 pt-2 border-t border-[#1f2937]">
             <p className="text-[10px] font-mono text-[#374151] uppercase tracking-wider px-1 mb-1.5">
@@ -1242,7 +1280,14 @@ export default function StaffPage() {
             {notCheckedIn.map((p: any) => (
               <div
                 key={p.id}
-                className="flex items-center gap-2 px-2.5 py-2 rounded-lg border border-[#1a2235] bg-[#0d1117] mb-1 opacity-60"
+                draggable
+                onDragStart={e => dragStartProfile(p.id, e)}
+                onDragEnd={dragEnd}
+                className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border mb-1 cursor-grab active:cursor-grabbing select-none transition-colors ${
+                  draggingProfileId === p.id
+                    ? 'opacity-60 border-[#8B5CF6]/40 bg-[#8B5CF6]/5'
+                    : 'border-[#1a2235] bg-[#0d1117] hover:border-[#8B5CF6]/30 hover:bg-[#0f1220]'
+                }`}
               >
                 <div className="w-7 h-7 rounded-full bg-[#151c26] border border-[#1f2937] flex items-center justify-center text-[10px] font-mono text-[#4B5563] flex-shrink-0">
                   {getInitials(p.full_name)}
@@ -1251,12 +1296,22 @@ export default function StaffPage() {
                   <p className="text-xs font-medium text-[#6B7280] truncate">{p.full_name}</p>
                   <p className="text-[10px] text-[#374151] truncate leading-none mt-px">{p.default_agency ?? '—'}</p>
                 </div>
+                {/* Check In */}
                 <button
                   onClick={e => { e.stopPropagation(); performCheckin(p.id) }}
                   className="flex-shrink-0 text-[9px] font-semibold text-[#3B82F6] bg-[#3B82F6]/10 hover:bg-[#3B82F6]/20 border border-[#3B82F6]/20 px-1.5 py-px rounded font-mono transition-colors touch-manipulation"
                   title="Check in"
                 >
                   Check In
+                </button>
+                {/* Preassign (drag-and-click) */}
+                <button
+                  onClick={() => openAssign(p)}
+                  className="flex-shrink-0 text-[10px] text-[#374151] hover:text-[#8B5CF6] transition-colors font-mono touch-manipulation rounded px-2 py-1.5 hover:bg-[#8B5CF6]/10"
+                  title="Preassign to slot"
+                >
+                  <span className="md:hidden text-xs font-medium">Assign</span>
+                  <span className="hidden md:inline">→</span>
                 </button>
               </div>
             ))}
