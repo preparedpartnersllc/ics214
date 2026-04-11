@@ -25,16 +25,32 @@ export async function updateSession(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  const isProtected = !request.nextUrl.pathname.startsWith('/login')
-    && !request.nextUrl.pathname.startsWith('/register')
-    && !request.nextUrl.pathname.startsWith('/auth')
-    && !request.nextUrl.pathname.startsWith('/reset-password')
-    && request.nextUrl.pathname !== '/'
+  const pathname = request.nextUrl.pathname
 
-  if (!user && isProtected) {
+  const isPublic = pathname.startsWith('/login')
+    || pathname.startsWith('/register')
+    || pathname.startsWith('/auth')
+    || pathname.startsWith('/reset-password')
+    || pathname === '/'
+
+  // Unauthenticated: redirect to login for any protected route
+  if (!user && !isPublic) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
+  }
+
+  // Authenticated: if must_reset_password is set in auth metadata, gate all
+  // non-public routes (except reset-password itself) to force the reset.
+  // user_metadata is in the JWT so no extra DB call is needed here.
+  if (user && !isPublic) {
+    const needsReset = user.user_metadata?.must_reset_password === true
+    if (needsReset) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/reset-password'
+      url.searchParams.set('forced', 'true')
+      return NextResponse.redirect(url)
+    }
   }
 
   return supabaseResponse

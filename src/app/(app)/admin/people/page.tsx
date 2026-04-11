@@ -17,6 +17,17 @@ export default function PeoplePage() {
   const [quickInviteState, setQuickInviteState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
   const [quickInviteError, setQuickInviteError] = useState('')
 
+  // Temp password modal state
+  const [tempPwUserId,  setTempPwUserId]  = useState<string | null>(null)
+  const [tempPwValue,   setTempPwValue]   = useState('')
+  const [tempPwSaving,  setTempPwSaving]  = useState(false)
+  const [tempPwError,   setTempPwError]   = useState<string | null>(null)
+  const [tempPwSuccess, setTempPwSuccess] = useState<string | null>(null)
+
+  // Force-reset state per user
+  const [forcingReset,  setForcingReset]  = useState<string | null>(null)
+  const [forceResults,  setForceResults]  = useState<Record<string, 'done' | 'error'>>({})
+
   useEffect(() => { load() }, [])
 
   async function load() {
@@ -79,6 +90,64 @@ export default function PeoplePage() {
     setProfiles(prev => prev.map(p => p.id === userId ? { ...p, role } : p))
   }
 
+  // ── Temp password ────────────────────────────────────────────────
+  function openTempPw(userId: string) {
+    setTempPwUserId(userId)
+    setTempPwValue('')
+    setTempPwError(null)
+    setTempPwSuccess(null)
+  }
+
+  function closeTempPw() {
+    setTempPwUserId(null)
+    setTempPwValue('')
+    setTempPwError(null)
+    setTempPwSuccess(null)
+    setTempPwSaving(false)
+  }
+
+  async function saveTempPassword() {
+    if (!tempPwUserId) return
+    if (tempPwValue.length < 8) {
+      setTempPwError('Password must be at least 8 characters'); return
+    }
+    setTempPwSaving(true)
+    setTempPwError(null)
+    const res = await fetch('/api/admin/set-temp-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: tempPwUserId, password: tempPwValue }),
+    })
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      setTempPwError(body.error ?? 'Failed to set password')
+      setTempPwSaving(false)
+      return
+    }
+    setTempPwSuccess('Temporary password set. User will be required to reset on next login.')
+    setTempPwSaving(false)
+    setProfiles(prev => prev.map(p =>
+      p.id === tempPwUserId ? { ...p, must_reset_password: true } : p
+    ))
+  }
+
+  // ── Force reset (flag only, no password change) ─────────────────
+  async function forceReset(userId: string) {
+    setForcingReset(userId)
+    const res = await fetch('/api/admin/set-temp-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId }),  // no password → flag only
+    })
+    setForceResults(prev => ({ ...prev, [userId]: res.ok ? 'done' : 'error' }))
+    if (res.ok) {
+      setProfiles(prev => prev.map(p =>
+        p.id === userId ? { ...p, must_reset_password: true } : p
+      ))
+    }
+    setForcingReset(null)
+  }
+
   const filtered = profiles.filter(p =>
     p.full_name?.toLowerCase().includes(search.toLowerCase()) ||
     p.email?.toLowerCase().includes(search.toLowerCase()) ||
@@ -95,6 +164,80 @@ export default function PeoplePage() {
 
   return (
     <div className="min-h-screen bg-[#0B0F14] flex flex-col">
+
+      {/* ── Temp password modal ── */}
+      {tempPwUserId && (() => {
+        const person = profiles.find(p => p.id === tempPwUserId)
+        return (
+          <div
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
+            onClick={closeTempPw}
+          >
+            <div
+              className="bg-[#161D26] border border-[#232B36] rounded-2xl w-full max-w-sm p-5 space-y-4"
+              onClick={e => e.stopPropagation()}
+            >
+              <div>
+                <p className="text-xs text-[#6B7280] font-mono uppercase tracking-wider">Set Temporary Password</p>
+                <p className="text-base font-semibold text-[#E5E7EB] mt-0.5">{person?.full_name}</p>
+                <p className="text-xs text-[#6B7280] mt-0.5">
+                  User will be required to set their own password on next login.
+                </p>
+              </div>
+
+              {tempPwSuccess ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-[#22C55E] flex items-start gap-2">
+                    <svg className="w-4 h-4 flex-shrink-0 mt-px" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M20 6L9 17l-5-5"/>
+                    </svg>
+                    {tempPwSuccess}
+                  </p>
+                  <button
+                    onClick={closeTempPw}
+                    className="w-full text-sm px-4 py-2 rounded-xl border border-[#232B36] text-[#9CA3AF] hover:bg-[#121821] transition-colors"
+                  >
+                    Done
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-xs text-[#6B7280] mb-1.5">Temporary password</label>
+                    <input
+                      type="text"
+                      className="input w-full font-mono"
+                      placeholder="min. 8 characters"
+                      value={tempPwValue}
+                      onChange={e => { setTempPwValue(e.target.value); setTempPwError(null) }}
+                      autoFocus
+                    />
+                    {tempPwError && (
+                      <p className="text-xs text-[#EF4444] mt-1">{tempPwError}</p>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={saveTempPassword}
+                      disabled={tempPwSaving || !tempPwValue.trim()}
+                      className="flex-1 text-sm px-4 py-2 rounded-xl bg-[#FF5A1F] text-white font-semibold hover:bg-[#FF6A33] disabled:opacity-50 transition-colors"
+                    >
+                      {tempPwSaving ? 'Saving…' : 'Set password'}
+                    </button>
+                    <button
+                      onClick={closeTempPw}
+                      className="text-sm px-4 py-2 rounded-xl border border-[#232B36] text-[#9CA3AF] hover:bg-[#121821] transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )
+      })()}
+
       <main className="flex-1 px-4 pt-6 pb-12 max-w-2xl mx-auto w-full">
 
         <div className="flex items-center justify-between mb-6">
@@ -164,6 +307,7 @@ export default function PeoplePage() {
           {filtered.map(p => {
             const inviteResult  = inviteResults[p.id]
             const placeholder   = isPlaceholder(p.email)
+            const forceResult   = forceResults[p.id]
 
             return (
               <div key={p.id} className="bg-[#161D26] border border-[#232B36] rounded-2xl p-4 hover:border-[#2a3545] transition-colors">
@@ -187,6 +331,11 @@ export default function PeoplePage() {
                       {placeholder && (
                         <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#F59E0B]/10 text-[#F59E0B]">
                           no login
+                        </span>
+                      )}
+                      {p.must_reset_password && (
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#EF4444]/10 text-[#EF4444]">
+                          reset required
                         </span>
                       )}
                     </div>
@@ -243,6 +392,33 @@ export default function PeoplePage() {
                         : inviteResult === 'sent'   ? '✓ Invite sent'
                         : inviteResult === 'error'  ? '✗ Failed'
                         : 'Send invite'}
+                    </button>
+                  )}
+
+                  {/* Set temp password */}
+                  {!placeholder && (
+                    <button
+                      onClick={() => openTempPw(p.id)}
+                      className="text-xs px-3 py-1.5 rounded-lg border border-[#232B36] bg-transparent text-[#9CA3AF] hover:bg-[#121821] hover:border-[#3a4555] transition-colors"
+                    >
+                      Set temp password
+                    </button>
+                  )}
+
+                  {/* Force reset on next login */}
+                  {!placeholder && !p.must_reset_password && (
+                    <button
+                      onClick={() => forceReset(p.id)}
+                      disabled={forcingReset === p.id}
+                      className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${
+                        forceResult === 'done'
+                          ? 'bg-[#22C55E]/10 text-[#22C55E] border-[#22C55E]/25'
+                          : forceResult === 'error'
+                          ? 'bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/25'
+                          : 'bg-transparent text-[#9CA3AF] border-[#232B36] hover:bg-[#121821] hover:border-[#3a4555]'
+                      }`}
+                    >
+                      {forcingReset === p.id ? '…' : 'Force reset'}
                     </button>
                   )}
 

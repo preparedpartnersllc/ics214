@@ -1,7 +1,8 @@
- 'use client'
+'use client'
 
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
+import { useSearchParams } from 'next/navigation'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { resetPassword } from '@/app/auth/actions'
@@ -21,6 +22,8 @@ type Input = z.infer<typeof schema>
 
 export default function ResetPasswordPage() {
   const [error, setError] = useState<string | null>(null)
+  const searchParams = useSearchParams()
+  const forced = searchParams.get('forced') === 'true'
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } =
     useForm<Input>({ resolver: zodResolver(schema) })
@@ -32,17 +35,42 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <AuthLayout title="New Password" subtitle="Incident Management Activity Log">
+    <AuthLayout
+      title={forced ? 'Set Your Password' : 'New Password'}
+      subtitle="Command OS — Detroit Fire Department"
+    >
+      {forced && (
+        <div className="mb-5 rounded-xl border border-[#F59E0B]/30 bg-[#F59E0B]/5 px-4 py-3">
+          <p className="text-sm font-semibold text-[#F59E0B] mb-1">
+            Password reset required
+          </p>
+          <p className="text-xs text-[#9CA3AF]">
+            An administrator set a temporary password for your account.
+            You must choose your own password before continuing.
+          </p>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <FormField label="New Password" error={errors.password?.message}>
-          <input type="password" className="input" {...register('password')} />
+          <input
+            type="password"
+            autoComplete="new-password"
+            className="input"
+            {...register('password')}
+          />
         </FormField>
         <FormField label="Confirm Password" error={errors.confirm?.message}>
-          <input type="password" className="input" {...register('confirm')} />
+          <input
+            type="password"
+            autoComplete="new-password"
+            className="input"
+            {...register('confirm')}
+          />
         </FormField>
         {error && <p className="text-sm text-red-400">{error}</p>}
         <Button type="submit" loading={isSubmitting} className="w-full">
-          Set new password
+          {forced ? 'Set password and continue' : 'Set new password'}
         </Button>
       </form>
     </AuthLayout>
