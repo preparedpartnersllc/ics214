@@ -13,7 +13,7 @@ import {
   FINANCE_POSITIONS,
 } from '@/lib/ics-positions'
 import Link from 'next/link'
-import { activityStatus, fmtAgo, STATUS_DOT_COLOR, fetchLastEntryMap, type LastEntryMap } from '@/lib/accountability'
+import { activityStatus, fmtAgo, STATUS_DOT_COLOR, STATUS_LABEL, fetchLastEntryMap, type LastEntryMap } from '@/lib/accountability'
 
 const UNIQUE_POSITIONS = new Set([
   'team_leader','group_supervisor','division_supervisor','branch_director',
@@ -630,10 +630,15 @@ export default function StaffPage() {
         {assignment.dual_hatted && (
           <span className="text-[9px] font-bold text-[#F59E0B] bg-[#F59E0B]/10 px-1 py-px rounded font-mono flex-shrink-0">DH</span>
         )}
-        {/* Activity status dot + last-entry time */}
-        <div className="flex-shrink-0 flex flex-col items-center gap-px" title={last ? `Last log: ${fmtAgo(last)}` : 'No log yet'}>
-          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: STATUS_DOT_COLOR[status] }} />
-          {last && <p className="text-[9px] text-[#374151] leading-none tabular-nums">{fmtAgo(last)}</p>}
+        {/* Activity status — data-status attr exposes value for future sort */}
+        <div className="flex-shrink-0 flex flex-col items-end gap-px" data-status={status}>
+          <div className="flex items-center gap-1">
+            <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: STATUS_DOT_COLOR[status] }} />
+            <span className="text-[9px] font-semibold leading-none" style={{ color: STATUS_DOT_COLOR[status] }}>
+              {STATUS_LABEL[status]}
+            </span>
+          </div>
+          {last && <p className="text-[9px] text-[#4B5563] leading-none">{fmtAgo(last)}</p>}
         </div>
         {/* Mobile: tap to open action sheet */}
         <button
@@ -942,10 +947,12 @@ export default function StaffPage() {
             </div>
             {/* Status dot — always shown so staging users are accounted for */}
             <div
-              className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-              style={{ backgroundColor: STATUS_DOT_COLOR[stagStatus] }}
-              title={stagLast ? `Last log: ${fmtAgo(stagLast)}` : 'No log yet'}
-            />
+              className="flex-shrink-0 flex flex-col items-center gap-px"
+              title={stagLast ? `${STATUS_LABEL[stagStatus]} · ${fmtAgo(stagLast)}` : STATUS_LABEL[stagStatus]}
+            >
+              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: STATUS_DOT_COLOR[stagStatus] }} />
+              {stagLast && <p className="text-[9px] leading-none" style={{ color: STATUS_DOT_COLOR[stagStatus] }}>{fmtAgo(stagLast)}</p>}
+            </div>
             <button
               onClick={() => openAssign(p)}
               className="flex-shrink-0 text-[10px] text-[#374151] hover:text-[#FF5A1F] transition-colors font-mono touch-manipulation rounded px-2 py-1.5 hover:bg-[#FF5A1F]/10"

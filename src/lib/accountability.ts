@@ -35,15 +35,15 @@ export function activityStatus(userId: string, map: LastEntryMap): ActivityStatu
 // ── Display helpers ──────────────────────────────────────────────────────────
 
 export const STATUS_DOT_COLOR: Record<ActivityStatus, string> = {
-  active:          '#22C55E',
-  warning:         '#F59E0B',
-  not_checked_in:  '#374151',
+  active:          '#22C55E',  // green-500
+  warning:         '#F59E0B',  // amber-500
+  not_checked_in:  '#EF4444',  // red-500 — changed from dark gray so it reads as urgent
 }
 
 export const STATUS_LABEL: Record<ActivityStatus, string> = {
   active:          'Active',
   warning:         'Warning',
-  not_checked_in:  'No log',
+  not_checked_in:  'Not checked in',
 }
 
 export function fmtAgo(iso: string): string {

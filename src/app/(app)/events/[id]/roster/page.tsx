@@ -10,7 +10,7 @@ import {
   PLANNING_POSITIONS, LOGISTICS_POSITIONS, FINANCE_POSITIONS,
 } from '@/lib/ics-positions'
 import Link from 'next/link'
-import { activityStatus, fmtAgo, STATUS_DOT_COLOR, fetchLastEntryMap, type LastEntryMap } from '@/lib/accountability'
+import { activityStatus, fmtAgo, STATUS_DOT_COLOR, STATUS_LABEL, fetchLastEntryMap, type LastEntryMap } from '@/lib/accountability'
 
 // ── Section helpers ──────────────────────────────────────────────
 const CMD_POS = new Set([
@@ -521,16 +521,24 @@ export default function RosterPage() {
           ⇄
         </button>
 
-        {/* Activity status */}
+        {/* Activity status — data-status attr exposes value for future sort */}
         {(() => {
           const status = activityStatus(a.user_id, lastEntryMap)
           const last = lastEntryMap[a.user_id]
           return (
-            <div className="flex-shrink-0 flex flex-col items-end gap-0.5 min-w-[44px]">
-              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: STATUS_DOT_COLOR[status] }} />
-              <p className="text-[10px] text-[#4B5563] leading-none">
-                {last ? fmtAgo(last) : 'No log'}
-              </p>
+            <div
+              className="flex-shrink-0 flex flex-col items-end gap-px"
+              data-status={status}
+            >
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: STATUS_DOT_COLOR[status] }} />
+                <span className="text-[10px] font-semibold leading-none" style={{ color: STATUS_DOT_COLOR[status] }}>
+                  {STATUS_LABEL[status]}
+                </span>
+              </div>
+              {last && (
+                <p className="text-[10px] text-[#4B5563] leading-none text-right">{fmtAgo(last)}</p>
+              )}
             </div>
           )
         })()}
