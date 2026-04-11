@@ -10,31 +10,7 @@ import {
   PLANNING_POSITIONS, LOGISTICS_POSITIONS, FINANCE_POSITIONS,
 } from '@/lib/ics-positions'
 import Link from 'next/link'
-
-// ── Activity status ──────────────────────────────────────────────
-const ACTIVE_THRESHOLD_MIN = 15 // configurable — minutes before status becomes WARNING
-
-function fmtAgo(iso: string): string {
-  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
-  return `${Math.floor(hrs / 24)}d ago`
-}
-
-function getActivityStatus(assignmentId: string, map: Record<string, string>): 'active' | 'warning' | 'not_checked_in' {
-  const last = map[assignmentId]
-  if (!last) return 'not_checked_in'
-  const mins = (Date.now() - new Date(last).getTime()) / 60_000
-  return mins <= ACTIVE_THRESHOLD_MIN ? 'active' : 'warning'
-}
-
-const STATUS_COLOR = {
-  active:          '#22C55E',
-  warning:         '#F59E0B',
-  not_checked_in:  '#374151',
-}
+import { activityStatus, fmtAgo, STATUS_DOT_COLOR, fetchLastEntryMap, type LastEntryMap } from '@/lib/accountability'
 
 // ── Section helpers ──────────────────────────────────────────────
 const CMD_POS = new Set([
@@ -105,7 +81,7 @@ export default function RosterPage() {
   const [teams, setTeams] = useState<any[]>([])
   const [groups, setGroups] = useState<any[]>([])
   const [divisions, setDivisions] = useState<any[]>([])
-  const [lastEntryMap, setLastEntryMap] = useState<Record<string, string>>({})
+  const [lastEntryMap, setLastEntryMap] = useState<LastEntryMap>({})
   const [loading, setLoading] = useState(true)
   const [opLoading, setOpLoading] = useState(false)
 
@@ -157,23 +133,15 @@ export default function RosterPage() {
     setTeams(teamData ?? [])
 
     const userIds = [...new Set((aData ?? []).map((a: any) => a.user_id))]
-    const assignmentIds = (aData ?? []).map((a: any) => a.id)
 
-    const [profResult, entryResult] = await Promise.all([
+    const [profResult, entryMap] = await Promise.all([
       userIds.length > 0
         ? supabase.from('profiles').select('*').in('id', userIds)
         : Promise.resolve({ data: [] as any[] }),
-      assignmentIds.length > 0
-        ? supabase.from('activity_entries').select('assignment_id, entry_time').in('assignment_id', assignmentIds).order('entry_time', { ascending: false })
-        : Promise.resolve({ data: [] as any[] }),
+      fetchLastEntryMap(supabase, opId),
     ])
 
     setProfileMap((profResult.data ?? []).reduce((acc: any, p: any) => { acc[p.id] = p; return acc }, {}))
-
-    const entryMap: Record<string, string> = {}
-    ;(entryResult.data ?? []).forEach((e: any) => {
-      if (!entryMap[e.assignment_id]) entryMap[e.assignment_id] = e.entry_time
-    })
     setLastEntryMap(entryMap)
 
     setLoading(false)
@@ -555,11 +523,11 @@ export default function RosterPage() {
 
         {/* Activity status */}
         {(() => {
-          const status = getActivityStatus(a.id, lastEntryMap)
-          const last = lastEntryMap[a.id]
+          const status = activityStatus(a.user_id, lastEntryMap)
+          const last = lastEntryMap[a.user_id]
           return (
             <div className="flex-shrink-0 flex flex-col items-end gap-0.5 min-w-[44px]">
-              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: STATUS_COLOR[status] }} />
+              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: STATUS_DOT_COLOR[status] }} />
               <p className="text-[10px] text-[#4B5563] leading-none">
                 {last ? fmtAgo(last) : 'No log'}
               </p>

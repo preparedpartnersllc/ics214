@@ -13,6 +13,7 @@ import {
   FINANCE_POSITIONS,
 } from '@/lib/ics-positions'
 import Link from 'next/link'
+import { activityStatus, fmtAgo, STATUS_DOT_COLOR, fetchLastEntryMap, type LastEntryMap } from '@/lib/accountability'
 
 const UNIQUE_POSITIONS = new Set([
   'team_leader','group_supervisor','division_supervisor','branch_director',
@@ -68,6 +69,9 @@ export default function StaffPage() {
   const [dragOverKey, setDragOverKey]                   = useState<string | null>(null)
   const [dragOverDivId, setDragOverDivId]               = useState<string | null>(null)
 
+  // Accountability — latest ICS 214 entry per user for this OP
+  const [lastEntryMap, setLastEntryMap] = useState<LastEntryMap>({})
+
   // Toast
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
 
@@ -122,7 +126,7 @@ export default function StaffPage() {
     const [
       { data: opData }, { data: pData }, { data: aData },
       { data: divData }, { data: grpData }, { data: teamData },
-      { data: repData },
+      { data: repData }, entryMap,
     ] = await Promise.all([
       supabase.from('operational_periods').select('*').eq('id', opId).single(),
       supabase.from('profiles').select('*').eq('is_active', true).order('full_name'),
@@ -131,6 +135,7 @@ export default function StaffPage() {
       supabase.from('groups').select('*').eq('operational_period_id', opId),
       supabase.from('teams').select('*').eq('operational_period_id', opId),
       supabase.from('agency_reps').select('*').eq('operational_period_id', opId).order('created_at'),
+      fetchLastEntryMap(supabase, opId),
     ])
     setOp(opData)
     setProfiles(pData ?? [])
@@ -140,6 +145,7 @@ export default function StaffPage() {
     setGroups(grpData ?? [])
     setTeams(teamData ?? [])
     setAgencyReps(repData ?? [])
+    setLastEntryMap(entryMap)
     setLoading(false)
   }
 
@@ -601,6 +607,8 @@ export default function StaffPage() {
   function FilledSlot({ label, assignment }: { label: string; assignment: any }) {
     const p = profileMap[assignment.user_id]
     const isBeingDragged = draggingAssignmentId === assignment.id
+    const status = activityStatus(assignment.user_id, lastEntryMap)
+    const last   = lastEntryMap[assignment.user_id]
     return (
       <div
         draggable
@@ -622,6 +630,11 @@ export default function StaffPage() {
         {assignment.dual_hatted && (
           <span className="text-[9px] font-bold text-[#F59E0B] bg-[#F59E0B]/10 px-1 py-px rounded font-mono flex-shrink-0">DH</span>
         )}
+        {/* Activity status dot + last-entry time */}
+        <div className="flex-shrink-0 flex flex-col items-center gap-px" title={last ? `Last log: ${fmtAgo(last)}` : 'No log yet'}>
+          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: STATUS_DOT_COLOR[status] }} />
+          {last && <p className="text-[9px] text-[#374151] leading-none tabular-nums">{fmtAgo(last)}</p>}
+        </div>
         {/* Mobile: tap to open action sheet */}
         <button
           onClick={e => { e.stopPropagation(); setMobileActionSheet({ assignment, profile: p }) }}
@@ -903,7 +916,10 @@ export default function StaffPage() {
             {stagingQuery ? 'No match' : 'All personnel assigned'}
           </p>
         )}
-        {staged.map((p: any) => (
+        {staged.map((p: any) => {
+          const stagStatus = activityStatus(p.id, lastEntryMap)
+          const stagLast   = lastEntryMap[p.id]
+          return (
           <div
             key={p.id}
             draggable
@@ -920,8 +936,16 @@ export default function StaffPage() {
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-[#E5E7EB] truncate">{p.full_name}</p>
-              <p className="text-[10px] text-[#4B5563] truncate leading-none mt-px">{p.default_agency ?? p.role ?? '—'}</p>
+              <p className="text-[10px] text-[#4B5563] truncate leading-none mt-px">
+                {stagLast ? fmtAgo(stagLast) : (p.default_agency ?? p.role ?? '—')}
+              </p>
             </div>
+            {/* Status dot — always shown so staging users are accounted for */}
+            <div
+              className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+              style={{ backgroundColor: STATUS_DOT_COLOR[stagStatus] }}
+              title={stagLast ? `Last log: ${fmtAgo(stagLast)}` : 'No log yet'}
+            />
             <button
               onClick={() => openAssign(p)}
               className="flex-shrink-0 text-[10px] text-[#374151] hover:text-[#FF5A1F] transition-colors font-mono touch-manipulation rounded px-2 py-1.5 hover:bg-[#FF5A1F]/10"
@@ -931,7 +955,8 @@ export default function StaffPage() {
               <span className="hidden md:inline">→</span>
             </button>
           </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

@@ -7,31 +7,7 @@ import { formatICSTime, formatDate, formatICSDateTime, getInitials } from '@/lib
 import { getPositionLabel, OPERATIONS_POSITIONS, PLANNING_POSITIONS, LOGISTICS_POSITIONS, FINANCE_POSITIONS } from '@/lib/ics-positions'
 import Link from 'next/link'
 import type { EventMeeting } from '@/types'
-
-// ── Activity status ──────────────────────────────────────────────
-const ACTIVE_THRESHOLD_MIN = 15 // configurable — minutes before status becomes WARNING
-
-function fmtAgo(iso: string): string {
-  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
-  return `${Math.floor(hrs / 24)}d ago`
-}
-
-function getActivityStatus(assignmentId: string, map: Record<string, string>): 'active' | 'warning' | 'not_checked_in' {
-  const last = map[assignmentId]
-  if (!last) return 'not_checked_in'
-  const mins = (Date.now() - new Date(last).getTime()) / 60_000
-  return mins <= ACTIVE_THRESHOLD_MIN ? 'active' : 'warning'
-}
-
-const STATUS_COLOR = {
-  active:          '#22C55E',
-  warning:         '#F59E0B',
-  not_checked_in:  '#374151',
-}
+import { activityStatus, fmtAgo, STATUS_DOT_COLOR, fetchLastEntryMap, type LastEntryMap } from '@/lib/accountability'
 
 function buildCountdown(startIso: string, endIso: string): { label: string; color: string } {
   const now   = Date.now()
@@ -88,7 +64,7 @@ export default function EventDetailPage() {
   const [assignments, setAssignments] = useState<any[]>([])
   const [profileMap, setProfileMap] = useState<any>({})
   const [recentEntries, setRecentEntries] = useState<any[]>([])
-  const [lastEntryMap, setLastEntryMap] = useState<Record<string, string>>({})
+  const [lastEntryMap, setLastEntryMap] = useState<LastEntryMap>({})
   const [alerts, setAlerts] = useState<any[]>([])
   const [expandedOps, setExpandedOps] = useState<Set<string>>(new Set())
   const [confirming, setConfirming] = useState<string | null>(null)
@@ -186,41 +162,22 @@ export default function EventDetailPage() {
     }
 
     // Fetch activity entries for active OP — powers both the personal log preview
-    // and the per-person status indicators in the personnel summary
+    // and the per-person status indicators in the personnel summary.
+    // Queries by user_id (not assignment_id) so staging users are included.
     const activeOpItem = (opData ?? []).find((o: any) => o.status === 'active')
     if (activeOpItem) {
-      const activeOpAssignmentIds = (aData ?? [])
-        .filter((a: any) => a.operational_period_id === activeOpItem.id)
-        .map((a: any) => a.id)
-
-      if (activeOpAssignmentIds.length > 0) {
-        const { data: entryData } = await supabase
+      const [entryMap, myEntriesResult] = await Promise.all([
+        fetchLastEntryMap(supabase, activeOpItem.id),
+        supabase
           .from('activity_entries')
-          .select('assignment_id, entry_time')
-          .in('assignment_id', activeOpAssignmentIds)
+          .select('*')
+          .eq('operational_period_id', activeOpItem.id)
+          .eq('user_id', user.id)
           .order('entry_time', { ascending: false })
-
-        // Build latest-entry-per-assignment map for status indicators
-        const entryMap: Record<string, string> = {}
-        ;(entryData ?? []).forEach((e: any) => {
-          if (!entryMap[e.assignment_id]) entryMap[e.assignment_id] = e.entry_time
-        })
-        setLastEntryMap(entryMap)
-
-        // Personal recent entries for the log preview card
-        const myA = (aData ?? []).find(
-          (a: any) => a.operational_period_id === activeOpItem.id && a.user_id === user.id
-        )
-        if (myA) {
-          const { data: myEntries } = await supabase
-            .from('activity_entries')
-            .select('*')
-            .eq('assignment_id', myA.id)
-            .order('entry_time', { ascending: false })
-            .limit(4)
-          setRecentEntries(myEntries ?? [])
-        }
-      }
+          .limit(4),
+      ])
+      setLastEntryMap(entryMap)
+      setRecentEntries(myEntriesResult.data ?? [])
     }
   }
 
@@ -852,12 +809,12 @@ export default function EventDetailPage() {
 
                       {/* Activity status */}
                       {(() => {
-                        const status = getActivityStatus(a.id, lastEntryMap)
-                        const last = lastEntryMap[a.id]
+                        const status = activityStatus(a.user_id, lastEntryMap)
+                        const last = lastEntryMap[a.user_id]
                         return (
                           <div className="flex-shrink-0 flex flex-col items-end gap-0.5 min-w-[44px]">
                             <div className="flex items-center gap-1">
-                              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: STATUS_COLOR[status] }} />
+                              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: STATUS_DOT_COLOR[status] }} />
                               {a.user_id === currentUserId && (
                                 <span className="text-[10px] font-semibold text-[#FF5A1F] bg-[#FF5A1F]/10 px-1.5 py-0.5 rounded-full">You</span>
                               )}
