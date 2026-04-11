@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useSearchParams } from 'next/navigation'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -20,7 +20,7 @@ const schema = z.object({
 
 type Input = z.infer<typeof schema>
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const [error, setError] = useState<string | null>(null)
   const searchParams = useSearchParams()
   const forced = searchParams.get('forced') === 'true'
@@ -74,5 +74,13 @@ export default function ResetPasswordPage() {
         </Button>
       </form>
     </AuthLayout>
+  )
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense>
+      <ResetPasswordForm />
+    </Suspense>
   )
 }
