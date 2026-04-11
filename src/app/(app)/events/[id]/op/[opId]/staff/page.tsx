@@ -1287,6 +1287,12 @@ export default function StaffPage() {
           >
             Check-In
           </Link>
+          <Link
+            href={`/events/${eventId}/op/${opId}/dashboard`}
+            className="hidden sm:block flex-shrink-0 text-xs text-[#6B7280] hover:text-[#E5E7EB] border border-[#232B36] hover:border-[#3a4555] px-2.5 py-1.5 rounded-lg transition-colors"
+          >
+            Dashboard
+          </Link>
           <button
             className="md:hidden flex items-center gap-1.5 text-xs text-[#FF5A1F] bg-[#FF5A1F]/10 px-2.5 py-1.5 rounded-lg font-medium"
             onClick={() => setMobileStagingOpen(v => !v)}

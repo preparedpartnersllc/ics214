@@ -1261,12 +1261,20 @@ export default function EventDetailPage() {
                         {canManage && (
                           <div className="flex items-center gap-3 flex-shrink-0">
                             {isAdmin && (
-                              <Link
-                                href={`/events/${id}/op/${op.id}/staff`}
-                                className="text-xs text-[#22C55E] hover:text-[#34D399] transition-colors font-medium"
-                              >
-                                Staff
-                              </Link>
+                              <>
+                                <Link
+                                  href={`/events/${id}/op/${op.id}/dashboard`}
+                                  className="text-xs text-[#FF5A1F] hover:text-[#FF6A33] transition-colors font-medium"
+                                >
+                                  Dashboard
+                                </Link>
+                                <Link
+                                  href={`/events/${id}/op/${op.id}/staff`}
+                                  className="text-xs text-[#22C55E] hover:text-[#34D399] transition-colors font-medium"
+                                >
+                                  Staff
+                                </Link>
+                              </>
                             )}
                             <Link
                               href={`/events/${id}/op/${op.id}/review`}
