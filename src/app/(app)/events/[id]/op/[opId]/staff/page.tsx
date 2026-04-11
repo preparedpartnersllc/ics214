@@ -369,24 +369,39 @@ export default function StaffPage() {
   }
 
   function dragStartProfile(profileId: string, e: React.DragEvent) {
-    setDraggingProfileId(profileId)
-    const p = profileMap[profileId]
-    setDragOverlayData({ name: p?.full_name ?? '?', sub: p?.default_agency ?? p?.role ?? '' })
+    // dataTransfer MUST be written synchronously — browser clears it after handler yields.
+    // setDragImage MUST be called synchronously too.
+    // All React state updates are deferred to requestAnimationFrame so the browser can
+    // fully register the drag before React re-renders. If setState is called synchronously
+    // here, React immediately re-renders, which recreates nested sub-components (FilledSlot,
+    // EmptySlot, TeamBlock…) as new function types, unmounting their DOM nodes. This
+    // destroys the drop-target elements before the drop event fires, silently cancelling
+    // any drag that originates from a nested component (i.e. all FilledSlot drags).
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('profile-id', profileId)
     e.dataTransfer.setDragImage(attachGhost(), 0, 0)
+    const p = profileMap[profileId]
     console.log('[DnD] dragStartProfile', profileId, p?.full_name)
+    requestAnimationFrame(() => {
+      setDraggingProfileId(profileId)
+      setDragOverlayData({ name: p?.full_name ?? '?', sub: p?.default_agency ?? p?.role ?? '' })
+    })
   }
 
   function dragStartAssignment(assignmentId: string, e: React.DragEvent) {
-    setDraggingAssignmentId(assignmentId)
-    const a = assignments.find((x: any) => x.id === assignmentId)
-    const p = a ? profileMap[a.user_id] : null
-    setDragOverlayData({ name: p?.full_name ?? '?', sub: getPositionLabel(a?.ics_position ?? '') })
+    // Same rationale as dragStartProfile — defer state updates to rAF.
+    // This is the primary fix for FilledSlot cards being undraggable after first placement:
+    // the synchronous setState was causing React to unmount the dragged element mid-drag.
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('assignment-id', assignmentId)
     e.dataTransfer.setDragImage(attachGhost(), 0, 0)
+    const a = assignments.find((x: any) => x.id === assignmentId)
+    const p = a ? profileMap[a.user_id] : null
     console.log('[DnD] dragStartAssignment', assignmentId, p?.full_name)
+    requestAnimationFrame(() => {
+      setDraggingAssignmentId(assignmentId)
+      setDragOverlayData({ name: p?.full_name ?? '?', sub: getPositionLabel(a?.ics_position ?? '') })
+    })
   }
 
   function dragEnd() {
