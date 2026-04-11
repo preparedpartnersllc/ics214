@@ -772,18 +772,20 @@ export default function EventDetailPage() {
           const remaining = activeOpAssignments.length - PREVIEW
 
           // Section counts — derived from ics_position
-          const cmdPos = new Set(['incident_commander','deputy_incident_commander','safety_officer',
-            'public_information_officer','liaison_officer','agency_representative'])
-          const opsPos = new Set(OPERATIONS_POSITIONS.map(p => p.value))
-          const planPos = new Set(PLANNING_POSITIONS.map(p => p.value))
-          const logPos = new Set(LOGISTICS_POSITIONS.map(p => p.value))
-          const finPos = new Set(FINANCE_POSITIONS.map(p => p.value))
+          const cmdPos    = new Set(['incident_commander','deputy_incident_commander','safety_officer',
+            'public_information_officer','liaison_officer'])
+          const opsPos    = new Set(OPERATIONS_POSITIONS.map(p => p.value))
+          const planPos   = new Set(PLANNING_POSITIONS.map(p => p.value))
+          const logPos    = new Set(LOGISTICS_POSITIONS.map(p => p.value))
+          const finPos    = new Set(FINANCE_POSITIONS.map(p => p.value))
+          const agencyPos = new Set(['agency_representative'])
           const sectionParts = [
             { label: 'CMD', count: activeOpAssignments.filter(a => cmdPos.has(a.ics_position)).length },
             { label: 'OPS', count: activeOpAssignments.filter(a => opsPos.has(a.ics_position)).length },
             { label: 'PLN', count: activeOpAssignments.filter(a => planPos.has(a.ics_position)).length },
             { label: 'LOG', count: activeOpAssignments.filter(a => logPos.has(a.ics_position)).length },
             { label: 'FIN', count: activeOpAssignments.filter(a => finPos.has(a.ics_position)).length },
+            { label: 'AGY', count: activeOpAssignments.filter(a => agencyPos.has(a.ics_position)).length },
           ].filter(s => s.count > 0)
 
           return (

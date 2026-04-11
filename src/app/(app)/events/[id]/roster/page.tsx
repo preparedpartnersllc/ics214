@@ -16,12 +16,13 @@ import { SECTION_COLORS, badgeColorForPosition } from '@/lib/section-colors'
 // ── Section helpers ──────────────────────────────────────────────
 const CMD_POS = new Set([
   'incident_commander','deputy_incident_commander','safety_officer',
-  'public_information_officer','liaison_officer','agency_representative',
+  'public_information_officer','liaison_officer',
 ])
 const OPS_POS = new Set(ICS_POSITIONS.filter(p => p.section === 'Operations Section').map(p => p.value))
 const PLN_POS = new Set(ICS_POSITIONS.filter(p => p.section === 'Planning Section').map(p => p.value))
 const LOG_POS = new Set(ICS_POSITIONS.filter(p => p.section === 'Logistics Section').map(p => p.value))
 const FIN_POS = new Set(ICS_POSITIONS.filter(p => p.section === 'Finance/Admin Section').map(p => p.value))
+const AGY_POS = new Set(['agency_representative'])
 
 function getSection(pos: string): string {
   if (CMD_POS.has(pos)) return 'Command'
@@ -29,6 +30,7 @@ function getSection(pos: string): string {
   if (PLN_POS.has(pos)) return 'Planning'
   if (LOG_POS.has(pos)) return 'Logistics'
   if (FIN_POS.has(pos)) return 'Finance'
+  if (AGY_POS.has(pos)) return 'Agency'
   return 'Other'
 }
 
@@ -68,7 +70,7 @@ const leaderRank = (pos: string) => {
   return i === -1 ? 999 : i
 }
 
-type FilterSection = 'All' | 'Command' | 'Operations' | 'Planning' | 'Logistics' | 'Finance'
+type FilterSection = 'All' | 'Command' | 'Operations' | 'Planning' | 'Logistics' | 'Finance' | 'Agency'
 
 export default function RosterPage() {
   const params = useParams()
@@ -463,6 +465,11 @@ export default function RosterPage() {
     const finItems = sysAssignments('__finance__')
     if (finItems.length > 0) result.push({ key: 'fin', label: 'Finance / Admin', color: SECTION_COLORS.finance, items: finItems })
 
+    // Agency Representatives — own section after Finance
+    const agyItems = assignments.filter(a => AGY_POS.has(a.ics_position))
+      .sort((a, b) => leaderRank(a.ics_position) - leaderRank(b.ics_position))
+    if (agyItems.length > 0) result.push({ key: 'agy', label: 'Agency Representatives', color: SECTION_COLORS.agency, items: agyItems })
+
     return result
   }, [isFiltered, assignments, teams, groups, divisions, sysTeamIdMap, profileMap])
 
@@ -630,6 +637,7 @@ export default function RosterPage() {
             { label: 'PLN', section: 'Planning'   as FilterSection, set: PLN_POS, color: SECTION_COLORS.planning   },
             { label: 'LOG', section: 'Logistics'  as FilterSection, set: LOG_POS, color: SECTION_COLORS.logistics  },
             { label: 'FIN', section: 'Finance'    as FilterSection, set: FIN_POS, color: SECTION_COLORS.finance    },
+            { label: 'AGY', section: 'Agency'     as FilterSection, set: AGY_POS, color: SECTION_COLORS.agency     },
           ]
           const counts = SECTION_DEFS.map(s => ({
             ...s, count: assignments.filter(a => s.set.has(a.ics_position)).length,
@@ -699,7 +707,7 @@ export default function RosterPage() {
         {/* ── Filter row ── */}
         <div className="flex items-center gap-2 mb-4 flex-wrap">
           {/* Section pills */}
-          {(['All','Command','Operations','Planning','Logistics','Finance'] as FilterSection[]).map(s => (
+          {(['All','Command','Operations','Planning','Logistics','Finance','Agency'] as FilterSection[]).map(s => (
             <button key={s}
               onClick={() => setSectionFilter(s)}
               className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${

@@ -3,11 +3,12 @@
  * Used by Org Chart (staff board) and Personnel Roster to stay in sync.
  *
  * Authoritative values come from the Org Chart section headers:
- *   Command    → bg-[#9CA3AF]  (staff/page.tsx:1470)
- *   Operations → bg-[#EF4444]  (staff/page.tsx:1641)
- *   Planning   → #EAB308       (staff/page.tsx:1751)
- *   Logistics  → #3B82F6       (staff/page.tsx:1752)
- *   Finance    → #22C55E       (staff/page.tsx:1753)
+ *   Command              → #9CA3AF
+ *   Operations           → #EF4444
+ *   Planning             → #EAB308
+ *   Logistics            → #3B82F6
+ *   Finance              → #22C55E
+ *   Agency Representatives → #6B7280  (distinct neutral, not Command)
  */
 export const SECTION_COLORS = {
   command:    '#9CA3AF',
@@ -15,6 +16,7 @@ export const SECTION_COLORS = {
   planning:   '#EAB308',
   logistics:  '#3B82F6',
   finance:    '#22C55E',
+  agency:     '#6B7280',
 } as const
 
 /**
@@ -29,7 +31,9 @@ const SECTION_BY_POS: Record<string, keyof typeof SECTION_COLORS | 'neutral'> = 
   safety_officer:              'command',
   public_information_officer:  'command',
   liaison_officer:             'command',
-  agency_representative:       'neutral',  // subdued per spec
+
+  // Agency Representatives — own section, not Command
+  agency_representative:       'agency',
 
   // Operations
   operations_section_chief:    'operations',

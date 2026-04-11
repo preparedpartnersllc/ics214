@@ -1496,142 +1496,6 @@ export default function StaffPage() {
                     />
               })}
             </div>
-
-            {/* Agency Representatives */}
-            {(() => {
-              const repDropKey = 'agency-reps-drop'
-              const repIsOver  = dragOverKey === repDropKey
-              const totalReps  = agencyRepAssignments.length + agencyReps.length
-              return (
-                <div className="px-4 py-3 border-t border-[#232B36]/50 bg-[#0a0e14]/40">
-                  <div className="flex items-center gap-2 mb-2.5">
-                    <span className="text-[10px] font-bold text-[#6B7280] uppercase tracking-widest">
-                      Agency Representatives
-                    </span>
-                    {totalReps > 0 && (
-                      <span className="text-[10px] font-mono text-[#374151]">{totalReps}</span>
-                    )}
-                  </div>
-
-                  {/* Profile-based reps dragged from staging */}
-                  {agencyRepAssignments.length > 0 && (
-                    <div className="space-y-1 mb-2">
-                      {agencyRepAssignments.map((a: any) => {
-                        const p = profileMap[a.user_id]
-                        return (
-                          <FilledSlot
-                            key={a.id}
-                            label={p?.default_agency ?? 'Agency Representative'}
-                            assignment={a}
-                          />
-                        )
-                      })}
-                    </div>
-                  )}
-
-                  {/* Manual / external reps */}
-                  {agencyReps.length > 0 && (
-                    <div className="space-y-1 mb-2">
-                      {agencyReps.map((r: any) => (
-                        <div key={r.id}
-                          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#121821] border border-[#232B36]">
-                          <div className="w-6 h-6 rounded-full bg-[#1a2235] border border-[#232B36] flex items-center justify-center text-[10px] font-mono text-[#6B7280] flex-shrink-0 select-none">
-                            {r.name.charAt(0).toUpperCase()}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium text-[#E5E7EB] truncate">{r.name}</p>
-                            {r.agency && (
-                              <p className="text-[10px] text-[#4B5563] leading-none mt-px truncate">{r.agency}</p>
-                            )}
-                          </div>
-                          {isAdmin && (
-                            <button
-                              onClick={() => removeAgencyRep(r.id)}
-                              className="text-[#374151] hover:text-red-400 transition-colors text-sm w-5 h-5 flex items-center justify-center rounded hover:bg-red-500/10 flex-shrink-0"
-                              title="Remove">×</button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Drop zone for staging drags — admin only */}
-                  {isAdmin && (
-                    <div
-                      className={`flex items-center gap-2 px-2 py-2 rounded-lg border border-dashed transition-colors ${
-                        repIsOver
-                          ? 'border-[#FF5A1F] bg-[#FF5A1F]/10'
-                          : isDragging
-                          ? 'border-[#374151] bg-[#0f1419]'
-                          : 'border-[#1a2235]'
-                      }`}
-                      onDragOver={e => { e.preventDefault(); if (draggingProfileId || draggingAssignmentId) { e.dataTransfer.dropEffect = 'move'; setDragOverKey(repDropKey) } }}
-                      onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverKey(null) }}
-                      onDrop={async e => {
-                        e.preventDefault()
-                        const aid = e.dataTransfer.getData('assignment-id')
-                        const pid = e.dataTransfer.getData('profile-id')
-                        dragEnd()
-                        const tid = await ensureSysTeam('__command__', null, null)
-                        if (!tid) return
-                        if (aid) { await reassignTo(aid, tid, 'agency_representative'); return }
-                        if (pid) await createAssignment(pid, tid, 'agency_representative')
-                      }}
-                    >
-                      <span className={`text-[10px] flex-1 font-mono ${repIsOver ? 'text-[#FF5A1F]' : 'text-[#1f2937]'}`}>
-                        {repIsOver ? '↓ Drop to add as Agency Rep' : '+ drag person here'}
-                      </span>
-                      {!isDragging && (
-                        <button
-                          onClick={() => { setShowAddRep(v => !v); setAddingRepName(''); setAddingRepAgency('') }}
-                          className="text-[10px] text-[#374151] hover:text-[#FF5A1F] transition-colors font-mono px-1.5 py-0.5 rounded hover:bg-[#FF5A1F]/10 flex-shrink-0"
-                        >
-                          + Add manually
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Manual add form — admin only */}
-                  {isAdmin && showAddRep && (
-                    <div className="mt-2 space-y-1.5">
-                      <input
-                        autoFocus
-                        type="text"
-                        className="w-full bg-[#121821] border border-[#FF5A1F]/30 text-[#E5E7EB] placeholder-[#374151] rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#FF5A1F]/60"
-                        placeholder="Name (e.g. John Smith)"
-                        value={addingRepName}
-                        onChange={e => setAddingRepName(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') addAgencyRep(addingRepName, addingRepAgency); if (e.key === 'Escape') setShowAddRep(false) }}
-                      />
-                      <input
-                        type="text"
-                        className="w-full bg-[#121821] border border-[#232B36] text-[#E5E7EB] placeholder-[#374151] rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#FF5A1F]/40"
-                        placeholder="Agency (e.g. DTE Energy)"
-                        value={addingRepAgency}
-                        onChange={e => setAddingRepAgency(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') addAgencyRep(addingRepName, addingRepAgency); if (e.key === 'Escape') setShowAddRep(false) }}
-                      />
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => addAgencyRep(addingRepName, addingRepAgency)}
-                          disabled={!addingRepName.trim()}
-                          className="flex-1 bg-[#FF5A1F] hover:bg-[#FF6A33] disabled:opacity-40 text-white rounded-lg py-1.5 text-xs font-semibold transition-colors"
-                        >
-                          Add Rep
-                        </button>
-                        <button
-                          onClick={() => setShowAddRep(false)}
-                          className="px-3 bg-[#121821] border border-[#232B36] text-[#6B7280] hover:text-[#E5E7EB] rounded-lg py-1.5 text-xs transition-colors"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )
-            })()}
           </div>
 
           {/* Operations */}
@@ -1754,6 +1618,143 @@ export default function StaffPage() {
               }
             />
           ))}
+
+          {/* Agency Representatives — own section after Finance */}
+          <div className="rounded-xl border border-[#232B36] overflow-hidden">
+            <div className="px-4 py-2.5 bg-[#161D26] flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-[#6B7280] flex-shrink-0" />
+              <span className="text-xs font-bold text-[#9CA3AF] uppercase tracking-widest">Agency Representatives</span>
+            </div>
+            {(() => {
+              const repDropKey = 'agency-reps-drop'
+              const repIsOver  = dragOverKey === repDropKey
+              const totalReps  = agencyRepAssignments.length + agencyReps.length
+              return (
+                <div className="px-4 py-3 bg-[#0f1419]/30">
+                  {totalReps === 0 && !isAdmin && (
+                    <p className="text-xs text-[#374151] text-center py-2">No agency representatives assigned.</p>
+                  )}
+
+                  {/* Profile-based reps dragged from staging */}
+                  {agencyRepAssignments.length > 0 && (
+                    <div className="space-y-1 mb-2">
+                      {agencyRepAssignments.map((a: any) => {
+                        const p = profileMap[a.user_id]
+                        return (
+                          <FilledSlot
+                            key={a.id}
+                            label={p?.default_agency ?? 'Agency Representative'}
+                            assignment={a}
+                          />
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {/* Manual / external reps */}
+                  {agencyReps.length > 0 && (
+                    <div className="space-y-1 mb-2">
+                      {agencyReps.map((r: any) => (
+                        <div key={r.id}
+                          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#121821] border border-[#232B36]">
+                          <div className="w-6 h-6 rounded-full bg-[#1a2235] border border-[#232B36] flex items-center justify-center text-[10px] font-mono text-[#6B7280] flex-shrink-0 select-none">
+                            {r.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium text-[#E5E7EB] truncate">{r.name}</p>
+                            {r.agency && (
+                              <p className="text-[10px] text-[#4B5563] leading-none mt-px truncate">{r.agency}</p>
+                            )}
+                          </div>
+                          {isAdmin && (
+                            <button
+                              onClick={() => removeAgencyRep(r.id)}
+                              className="text-[#374151] hover:text-red-400 transition-colors text-sm w-5 h-5 flex items-center justify-center rounded hover:bg-red-500/10 flex-shrink-0"
+                              title="Remove">×</button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Drop zone for staging drags — admin only */}
+                  {isAdmin && (
+                    <div
+                      className={`flex items-center gap-2 px-2 py-2 rounded-lg border border-dashed transition-colors ${
+                        repIsOver
+                          ? 'border-[#FF5A1F] bg-[#FF5A1F]/10'
+                          : isDragging
+                          ? 'border-[#374151] bg-[#0f1419]'
+                          : 'border-[#1a2235]'
+                      }`}
+                      onDragOver={e => { e.preventDefault(); if (draggingProfileId || draggingAssignmentId) { e.dataTransfer.dropEffect = 'move'; setDragOverKey(repDropKey) } }}
+                      onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverKey(null) }}
+                      onDrop={async e => {
+                        e.preventDefault()
+                        const aid = e.dataTransfer.getData('assignment-id')
+                        const pid = e.dataTransfer.getData('profile-id')
+                        dragEnd()
+                        const tid = await ensureSysTeam('__command__', null, null)
+                        if (!tid) return
+                        if (aid) { await reassignTo(aid, tid, 'agency_representative'); return }
+                        if (pid) await createAssignment(pid, tid, 'agency_representative')
+                      }}
+                    >
+                      <span className={`text-[10px] flex-1 font-mono ${repIsOver ? 'text-[#FF5A1F]' : 'text-[#1f2937]'}`}>
+                        {repIsOver ? '↓ Drop to add as Agency Rep' : '+ drag person here'}
+                      </span>
+                      {!isDragging && (
+                        <button
+                          onClick={() => { setShowAddRep(v => !v); setAddingRepName(''); setAddingRepAgency('') }}
+                          className="text-[10px] text-[#374151] hover:text-[#FF5A1F] transition-colors font-mono px-1.5 py-0.5 rounded hover:bg-[#FF5A1F]/10 flex-shrink-0"
+                        >
+                          + Add manually
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Manual add form — admin only */}
+                  {isAdmin && showAddRep && (
+                    <div className="mt-2 space-y-1.5">
+                      <input
+                        autoFocus
+                        type="text"
+                        className="w-full bg-[#121821] border border-[#FF5A1F]/30 text-[#E5E7EB] placeholder-[#374151] rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#FF5A1F]/60"
+                        placeholder="Name (e.g. John Smith)"
+                        value={addingRepName}
+                        onChange={e => setAddingRepName(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') addAgencyRep(addingRepName, addingRepAgency); if (e.key === 'Escape') setShowAddRep(false) }}
+                      />
+                      <input
+                        type="text"
+                        className="w-full bg-[#121821] border border-[#232B36] text-[#E5E7EB] placeholder-[#374151] rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#FF5A1F]/40"
+                        placeholder="Agency (e.g. DTE Energy)"
+                        value={addingRepAgency}
+                        onChange={e => setAddingRepAgency(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') addAgencyRep(addingRepName, addingRepAgency); if (e.key === 'Escape') setShowAddRep(false) }}
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => addAgencyRep(addingRepName, addingRepAgency)}
+                          disabled={!addingRepName.trim()}
+                          className="flex-1 bg-[#FF5A1F] hover:bg-[#FF6A33] disabled:opacity-40 text-white rounded-lg py-1.5 text-xs font-semibold transition-colors"
+                        >
+                          Add Rep
+                        </button>
+                        <button
+                          onClick={() => setShowAddRep(false)}
+                          className="px-3 bg-[#121821] border border-[#232B36] text-[#6B7280] hover:text-[#E5E7EB] rounded-lg py-1.5 text-xs transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+          </div>
 
         </main>
       </div>
