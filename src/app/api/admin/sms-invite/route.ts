@@ -74,15 +74,11 @@ export async function POST(request: Request) {
   }
 
   // ── Build message ─────────────────────────────────────────────────────────
-  const greeting = firstName ? `Hi ${firstName}, ` : ''
-  const message = [
-    `${greeting}you've been invited to Command OS — Detroit Fire Department.`,
-    ``,
-    `Sign in or create your account:`,
-    `${siteUrl}/login`,
-    ``,
-    `Contact your incident administrator if you need help.`,
-  ].join('\n')
+  // Keep message under 160 chars and GSM-7 only (no em dashes, smart quotes,
+  // etc.) so it sends as a single segment. Unicode forces 70-char segments
+  // which carriers aggressively filter on unregistered / new numbers.
+  const greeting = firstName ? `Hi ${firstName} - ` : ''
+  const message = `${greeting}You're invited to Command OS (Detroit Fire Department). Sign in or create your account: ${siteUrl}/login`
 
   // ── Send ──────────────────────────────────────────────────────────────────
   const result = await sendSMS(to, message)
