@@ -28,6 +28,11 @@ export default function PeoplePage() {
   const [forcingReset,  setForcingReset]  = useState<string | null>(null)
   const [forceResults,  setForceResults]  = useState<Record<string, 'done' | 'error'>>({})
 
+  // SMS invite state per user
+  const [smsInviting,  setSmsInviting]  = useState<string | null>(null)
+  const [smsResults,   setSmsResults]   = useState<Record<string, 'sent' | 'error'>>({})
+  const [smsErrors,    setSmsErrors]    = useState<Record<string, string>>({})
+
   useEffect(() => { load() }, [])
 
   async function load() {
@@ -129,6 +134,25 @@ export default function PeoplePage() {
     setProfiles(prev => prev.map(p =>
       p.id === tempPwUserId ? { ...p, must_reset_password: true } : p
     ))
+  }
+
+  // ── SMS invite ───────────────────────────────────────────────────
+  async function sendSmsInvite(userId: string) {
+    setSmsInviting(userId)
+    setSmsErrors(prev => { const n = { ...prev }; delete n[userId]; return n })
+    const res = await fetch('/api/admin/sms-invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId }),
+    })
+    if (res.ok) {
+      setSmsResults(prev => ({ ...prev, [userId]: 'sent' }))
+    } else {
+      const body = await res.json().catch(() => ({}))
+      setSmsErrors(prev => ({ ...prev, [userId]: body.error ?? 'Could not send text invite' }))
+      setSmsResults(prev => ({ ...prev, [userId]: 'error' }))
+    }
+    setSmsInviting(null)
   }
 
   // ── Force reset (flag only, no password change) ─────────────────
@@ -309,6 +333,9 @@ export default function PeoplePage() {
             const placeholder   = isPlaceholder(p.email)
             const forceResult   = forceResults[p.id]
 
+            const smsResult = smsResults[p.id]
+            const hasPhone  = !!(p.phone_normalized || p.phone)
+
             return (
               <div key={p.id} className="bg-[#161D26] border border-[#232B36] rounded-2xl p-4 hover:border-[#2a3545] transition-colors">
 
@@ -395,6 +422,28 @@ export default function PeoplePage() {
                     </button>
                   )}
 
+                  {/* Text invite — only shown when phone exists */}
+                  {hasPhone ? (
+                    <button
+                      onClick={() => sendSmsInvite(p.id)}
+                      disabled={smsInviting === p.id || smsResult === 'sent'}
+                      className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${
+                        smsResult === 'sent'
+                          ? 'bg-[#22C55E]/10 text-[#22C55E] border-[#22C55E]/25'
+                          : smsResult === 'error'
+                          ? 'bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/25'
+                          : 'bg-transparent text-[#9CA3AF] border-[#232B36] hover:bg-[#121821] hover:border-[#3a4555]'
+                      }`}
+                    >
+                      {smsInviting === p.id  ? 'Sending…'
+                        : smsResult === 'sent'  ? '✓ Text sent'
+                        : smsResult === 'error' ? '✗ Failed'
+                        : 'Text invite'}
+                    </button>
+                  ) : (
+                    <span className="text-xs text-[#4B5563] px-1">No phone</span>
+                  )}
+
                   {/* Set temp password */}
                   {!placeholder && (
                     <button
@@ -432,6 +481,9 @@ export default function PeoplePage() {
 
                   {inviteResult === 'error' && inviteErrors[p.id] && (
                     <p className="text-xs text-[#EF4444] w-full">{inviteErrors[p.id]}</p>
+                  )}
+                  {smsResult === 'error' && smsErrors[p.id] && (
+                    <p className="text-xs text-[#EF4444] w-full">{smsErrors[p.id]}</p>
                   )}
 
                   {p.last_active_at && (
