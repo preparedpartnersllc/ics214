@@ -32,6 +32,15 @@ export async function sendSMS(to: string | null | undefined, body: string): Prom
   }
 
   try {
+    // TWILIO_FROM_NUMBER can be either a phone number (+1...) or a
+    // Messaging Service SID (MG...). Use the correct Twilio param for each.
+    const params: Record<string, string> = { To: to, Body: body }
+    if (fromNumber.startsWith('MG')) {
+      params['MessagingServiceSid'] = fromNumber
+    } else {
+      params['From'] = fromNumber
+    }
+
     const res = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
       {
@@ -40,7 +49,7 @@ export async function sendSMS(to: string | null | undefined, body: string): Prom
           Authorization: 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64'),
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: new URLSearchParams({ To: to, From: fromNumber, Body: body }).toString(),
+        body: new URLSearchParams(params).toString(),
       }
     )
     if (res.ok) return { sent: true, reason: 'sent' }
