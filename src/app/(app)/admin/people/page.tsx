@@ -17,6 +17,11 @@ export default function PeoplePage() {
   const [quickInviteState, setQuickInviteState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
   const [quickInviteError, setQuickInviteError] = useState('')
 
+  // Quick SMS invite (direct phone number — no profile required)
+  const [quickSmsPhone, setQuickSmsPhone] = useState('')
+  const [quickSmsState, setQuickSmsState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const [quickSmsError, setQuickSmsError] = useState('')
+
   // Temp password modal state
   const [tempPwUserId,  setTempPwUserId]  = useState<string | null>(null)
   const [tempPwValue,   setTempPwValue]   = useState('')
@@ -78,6 +83,27 @@ export default function PeoplePage() {
       const body = await res.json().catch(() => ({}))
       setQuickInviteError(body.error ?? 'Failed to send invite')
       setQuickInviteState('error')
+    }
+  }
+
+  async function sendQuickSms(e: { preventDefault(): void }) {
+    e.preventDefault()
+    const phone = quickSmsPhone.trim()
+    if (!phone) return
+    setQuickSmsState('sending')
+    setQuickSmsError('')
+    const res = await fetch('/api/admin/sms-invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone }),
+    })
+    if (res.ok) {
+      setQuickSmsState('sent')
+      setQuickSmsPhone('')
+    } else {
+      const body = await res.json().catch(() => ({}))
+      setQuickSmsError(body.error ?? 'Failed to send text invite')
+      setQuickSmsState('error')
     }
   }
 
@@ -302,6 +328,39 @@ export default function PeoplePage() {
           )}
           {quickInviteState === 'error' && (
             <p className="text-xs text-[#EF4444] mt-2">{quickInviteError}</p>
+          )}
+        </div>
+
+        {/* Invite by text */}
+        <div className="bg-[#161D26] border border-[#22C55E]/15 rounded-2xl p-4 mb-6">
+          <p className="text-xs text-[#6B7280] font-mono uppercase tracking-wider mb-3">Invite by Text</p>
+          <form onSubmit={sendQuickSms} className="flex gap-2">
+            <input
+              type="tel"
+              className="input flex-1"
+              placeholder="(313) 555-0100"
+              value={quickSmsPhone}
+              onChange={e => { setQuickSmsPhone(e.target.value); setQuickSmsState('idle') }}
+              disabled={quickSmsState === 'sending'}
+            />
+            <button
+              type="submit"
+              disabled={quickSmsState === 'sending' || !quickSmsPhone.trim()}
+              className="text-sm px-4 py-2 rounded-xl bg-[#22C55E] text-white font-semibold hover:bg-[#16A34A] active:bg-[#15803D] active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed transition-all whitespace-nowrap"
+            >
+              {quickSmsState === 'sending' ? 'Sending…' : 'Send Text'}
+            </button>
+          </form>
+          {quickSmsState === 'sent' && (
+            <p className="text-xs text-[#22C55E] mt-2 flex items-center gap-1">
+              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M20 6L9 17l-5-5"/>
+              </svg>
+              Text invite sent
+            </p>
+          )}
+          {quickSmsState === 'error' && (
+            <p className="text-xs text-[#EF4444] mt-2">{quickSmsError}</p>
           )}
         </div>
 
