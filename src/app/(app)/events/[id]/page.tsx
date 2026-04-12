@@ -51,6 +51,23 @@ function getSupervisorPosition(icsPosition: string): string | null {
   return 'incident_commander'
 }
 
+// ── Personnel section definitions (module-level) ─────────────────────────────
+const PERSONNEL_SECTIONS = [
+  { label: 'Command',    color: '#9CA3AF', positions: new Set(['incident_commander','deputy_incident_commander','safety_officer','public_information_officer','liaison_officer']) },
+  { label: 'Operations', color: '#EF4444', positions: new Set(OPERATIONS_POSITIONS.map((p: any) => p.value)) },
+  { label: 'Planning',   color: '#EAB308', positions: new Set(PLANNING_POSITIONS.map((p: any) => p.value)) },
+  { label: 'Logistics',  color: '#3B82F6', positions: new Set(LOGISTICS_POSITIONS.map((p: any) => p.value)) },
+  { label: 'Finance',    color: '#22C55E', positions: new Set(FINANCE_POSITIONS.map((p: any) => p.value)) },
+  { label: 'Agency',     color: '#6B7280', positions: new Set(['agency_representative']) },
+]
+
+function getMySection(icsPosition: string): string {
+  for (const s of PERSONNEL_SECTIONS) {
+    if (s.positions.has(icsPosition)) return s.label
+  }
+  return 'Command'
+}
+
 export default function EventDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -81,6 +98,10 @@ export default function EventDetailPage() {
   const [tick, setTick] = useState(0)
   // Invite toast — shown when user has unread meeting notifications
   const [inviteToast, setInviteToast] = useState<{ title: string; body: string | null; meeting_id: string | null } | null>(null)
+
+  // Personnel section collapse + person detail overlay
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
+  const [selectedPerson, setSelectedPerson] = useState<{ assignment: any; prof: any } | null>(null)
 
   // Alert form state
   const [showAlertForm, setShowAlertForm] = useState(false)
@@ -135,6 +156,16 @@ export default function EventDetailPage() {
     setTeams(teamData ?? [])
     setAssignments(aData ?? [])
     setAlerts(alertData ?? [])
+
+    // Set default expanded sections — always Command + user's own section
+    const activeOpForSections = (opData ?? []).find((o: any) => o.status === 'active')
+    if (activeOpForSections) {
+      const myA = (aData ?? []).find((a: any) => a.user_id === user.id && a.operational_period_id === activeOpForSections.id)
+      if (myA) {
+        const mySection = getMySection(myA.ics_position)
+        setExpandedSections(new Set([mySection]))
+      }
+    }
 
     // Include alert creator IDs so their names appear in profileMap
     const assignmentUserIds = (aData ?? []).map((a: any) => a.user_id)
@@ -229,6 +260,14 @@ export default function EventDetailPage() {
     setExpandedOps(prev => {
       const next = new Set(prev)
       next.has(opId) ? next.delete(opId) : next.add(opId)
+      return next
+    })
+  }
+
+  function toggleSection(label: string) {
+    setExpandedSections(prev => {
+      const next = new Set(prev)
+      next.has(label) ? next.delete(label) : next.add(label)
       return next
     })
   }
@@ -411,9 +450,10 @@ export default function EventDetailPage() {
   return (
     <div className="min-h-screen bg-[#0B0F14] flex flex-col">
 
-      {/* ── STICKY HEADER ─────────────────────────────────────── */}
+      {/* ── STICKY HEADER + COMMAND BAR ───────────────────────── */}
       <header className="sticky top-12 z-20 bg-[#0B0F14]/95 backdrop-blur-sm border-b border-[#232B36]/70">
-        <div className="px-4 py-2.5 sm:py-3 max-w-2xl mx-auto flex items-center gap-4">
+        {/* Row 1: nav + event name */}
+        <div className="px-4 pt-2.5 pb-1.5 max-w-2xl mx-auto flex items-center gap-4">
           <Link
             href="/events"
             className="flex-shrink-0 inline-flex items-center gap-1.5 text-xs text-[#6B7280] hover:text-[#E5E7EB] transition-colors"
@@ -425,25 +465,46 @@ export default function EventDetailPage() {
           </Link>
           <div className="min-w-0 flex-1 text-right">
             <p className="text-sm font-semibold text-[#E5E7EB] truncate">{event.name}</p>
-            <div className="flex items-center justify-end gap-1.5 mt-0.5 flex-wrap">
-              {event.incident_number && (
-                <span className="text-xs font-mono text-[#6B7280]">#{event.incident_number}</span>
-              )}
-              {activeOp ? (
-                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#22C55E]/10 text-[#22C55E] ring-1 ring-inset ring-[#22C55E]/20">
-                  OP {activeOp.period_number} Active
-                </span>
-              ) : (
-                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#6B7280]/10 text-[#6B7280] ring-1 ring-inset ring-[#6B7280]/20 capitalize">
-                  {event.status}
-                </span>
-              )}
-              {profile?.role && profile.role !== 'member' && (
-                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#FF5A1F]/10 text-[#FF5A1F] ring-1 ring-inset ring-[#FF5A1F]/20 capitalize">
-                  {profile.role}
-                </span>
-              )}
-            </div>
+            {event.incident_number && (
+              <span className="text-xs font-mono text-[#6B7280]">#{event.incident_number}</span>
+            )}
+          </div>
+        </div>
+        {/* Row 2: command status bar */}
+        <div className="px-4 pb-2 max-w-2xl mx-auto">
+          <div className="flex items-center gap-3 text-[11px] font-mono overflow-x-auto no-scrollbar">
+            {activeOp ? (
+              <span className="flex items-center gap-1 text-[#22C55E] flex-shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E] animate-pulse inline-block" />
+                OP {activeOp.period_number} Active
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-[#6B7280] flex-shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#6B7280] inline-block" />
+                No Active OP
+              </span>
+            )}
+            {activeOp && (
+              <span className="text-[#6B7280] flex-shrink-0">
+                {formatICSTime(activeOp.op_period_start)}–{formatICSTime(activeOp.op_period_end)}
+              </span>
+            )}
+            {activeOpAssignments.length > 0 && (
+              <span className="text-[#6B7280] flex-shrink-0">
+                {activeOpAssignments.length} personnel
+              </span>
+            )}
+            {alerts.length > 0 ? (
+              <span className="flex items-center gap-1 text-[#EF4444] font-semibold flex-shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#EF4444] animate-pulse inline-block" />
+                {alerts.length} alert{alerts.length !== 1 ? 's' : ''}
+              </span>
+            ) : (
+              <span className="text-[#22C55E] flex-shrink-0">No alerts</span>
+            )}
+            {profile?.role && profile.role !== 'member' && (
+              <span className="text-[#FF5A1F] ml-auto flex-shrink-0 capitalize">{profile.role}</span>
+            )}
           </div>
         </div>
       </header>
@@ -659,67 +720,79 @@ export default function EventDetailPage() {
           )}
         </div>
 
-        {/* 3 · MY ASSIGNMENT ────────────────────────────────── */}
+        {/* 3 · MY ASSIGNMENT — primary action card ─────────── */}
         {myAssignment ? (
-          <section className="mb-8">
+          <section className="mb-6">
             <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide mb-3">My Assignment</p>
-            <div className="bg-[#161D26] border border-[#232B36] rounded-2xl p-4">
-
-              <p className="text-2xl font-bold text-[#E5E7EB] leading-tight tracking-tight">
-                {getPositionLabel(myAssignment.ics_position)}
-              </p>
-              {myTeam && !myTeam.name.startsWith('__') && (
-                <p className="text-sm text-[#6B7280] mt-1">Team: {myTeam.name}</p>
-              )}
-
-              {(supervisorProfile || teammates.length > 0) && (
-                <div className="mt-4 pt-4 border-t border-[#232B36] space-y-3">
+            {/* Prominent card with orange left accent */}
+            <div className="bg-[#161D26] border border-[#FF5A1F]/30 rounded-2xl overflow-hidden shadow-lg shadow-[#FF5A1F]/5">
+              <div className="border-l-4 border-[#FF5A1F] px-4 pt-4 pb-3">
+                <p className="text-2xl font-bold text-[#E5E7EB] leading-tight tracking-tight">
+                  {getPositionLabel(myAssignment.ics_position)}
+                </p>
+                <div className="flex items-center gap-3 mt-2 flex-wrap">
                   {supervisorProfile && (
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs text-[#6B7280] w-24 flex-shrink-0">Reporting to</span>
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-6 h-6 rounded-full bg-[#121821] border border-[#232B36] flex items-center justify-center text-xs font-mono text-[#9CA3AF] flex-shrink-0">
-                          {getInitials(supervisorProfile.full_name ?? '')}
-                        </div>
-                        <span className="text-sm text-[#E5E7EB] truncate">{supervisorProfile.full_name}</span>
-                        <span className="text-xs text-[#6B7280] flex-shrink-0 hidden sm:inline">
-                          · {getPositionLabel(supervisorAssignment!.ics_position)}
-                        </span>
-                      </div>
-                    </div>
+                    <span className="text-xs text-[#9CA3AF]">
+                      Reports to <span className="text-[#E5E7EB] font-medium">{supervisorProfile.full_name}</span>
+                    </span>
                   )}
-
                   {teammates.length > 0 && (
-                    <div className="flex items-start gap-3">
-                      <span className="text-xs text-[#6B7280] w-24 flex-shrink-0 pt-1">Team</span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {teammates.slice(0, 5).map((a: any) => {
-                          const p = profileMap[a.user_id]
-                          return (
-                            <div
-                              key={a.id}
-                              title={`${p?.full_name ?? 'Unknown'} · ${getPositionLabel(a.ics_position)}`}
-                              className="flex items-center gap-1.5 bg-[#121821] border border-[#232B36] rounded-full pl-1 pr-2.5 py-0.5"
-                            >
-                              <div className="w-5 h-5 rounded-full bg-[#232B36] flex items-center justify-center text-xs font-mono text-[#9CA3AF] flex-shrink-0">
-                                {getInitials(p?.full_name ?? '?')}
-                              </div>
-                              <span className="text-xs text-[#9CA3AF] max-w-[80px] truncate">
-                                {p?.full_name ?? 'Unknown'}
-                              </span>
-                            </div>
-                          )
-                        })}
-                        {teammates.length > 5 && (
-                          <div className="flex items-center px-2 text-xs text-[#6B7280]">
-                            +{teammates.length - 5} more
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                    <span className="text-xs text-[#9CA3AF]">
+                      <span className="text-[#E5E7EB] font-medium">{teammates.length}</span> teammate{teammates.length !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                  {myTeam && !myTeam.name.startsWith('__') && (
+                    <span className="text-xs text-[#6B7280]">Team: {myTeam.name}</span>
                   )}
                 </div>
-              )}
+              </div>
+
+              {/* Action buttons */}
+              <div className="px-4 pb-4 pt-1 flex items-center gap-2 flex-wrap">
+                {/* Call IC */}
+                {supervisorProfile?.phone_normalized ? (
+                  <a
+                    href={`tel:${supervisorProfile.phone_normalized}`}
+                    className="inline-flex items-center gap-1.5 bg-[#16A34A] hover:bg-[#15803D] active:bg-[#166534] text-white text-xs font-semibold px-3 py-2 rounded-xl transition-colors min-h-[36px]"
+                  >
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.4a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.62 2.79h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 10.4a16 16 0 0 0 6 6l.96-1.96a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7a2 2 0 0 1 1.72 2.03z"/>
+                    </svg>
+                    Call {supervisorAssignment ? getPositionLabel(supervisorAssignment.ics_position).split(' ')[0] : 'IC'}
+                  </a>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 bg-[#121821] text-[#4B5563] text-xs font-semibold px-3 py-2 rounded-xl border border-[#232B36] min-h-[36px] cursor-not-allowed">
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.4a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.62 2.79h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 10.4a16 16 0 0 0 6 6l.96-1.96a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7a2 2 0 0 1 1.72 2.03z"/>
+                    </svg>
+                    No IC Phone
+                  </span>
+                )}
+                {/* View Team */}
+                <Link
+                  href={`/events/${id}/roster`}
+                  className="inline-flex items-center gap-1.5 bg-[#121821] hover:bg-[#232B36] border border-[#232B36] hover:border-[#3a4555] text-[#9CA3AF] hover:text-[#E5E7EB] text-xs font-semibold px-3 py-2 rounded-xl transition-colors min-h-[36px]"
+                >
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+                  </svg>
+                  View Team
+                </Link>
+                {/* Log ICS 214 */}
+                {activeOp && (
+                  <Link
+                    href={`/events/${id}/op/${activeOp.id}/log`}
+                    className="inline-flex items-center gap-1.5 bg-[#FF5A1F] hover:bg-[#FF6A33] active:bg-[#E14A12] text-white text-xs font-semibold px-3 py-2 rounded-xl transition-colors min-h-[36px] ml-auto"
+                  >
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                      <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                    Log 214
+                  </Link>
+                )}
+              </div>
             </div>
           </section>
         ) : activeOp ? (
@@ -729,7 +802,7 @@ export default function EventDetailPage() {
           </div>
         ) : null}
 
-        {/* 3b · PERSONNEL SUMMARY ──────────────────────────── */}
+        {/* 3b · PERSONNEL — collapsible sections ──────────── */}
         {activeOp && activeOpAssignments.length > 0 && (() => {
           // Short role tags for display — keyed by ics_position value
           const ROLE_TAG: Record<string, { tag: string; color: string }> = {
@@ -766,170 +839,170 @@ export default function EventDetailPage() {
             const i = LEADER_PRIORITY.indexOf(pos)
             return i === -1 ? 999 : i
           }
-          const sorted = [...activeOpAssignments].sort((a, b) => rank(a.ics_position) - rank(b.ics_position))
-          const PREVIEW = 6
-          const preview = sorted.slice(0, PREVIEW)
-          const remaining = activeOpAssignments.length - PREVIEW
-
-          // Section counts — derived from ics_position
-          const cmdPos    = new Set(['incident_commander','deputy_incident_commander','safety_officer',
-            'public_information_officer','liaison_officer'])
-          const opsPos    = new Set(OPERATIONS_POSITIONS.map(p => p.value))
-          const planPos   = new Set(PLANNING_POSITIONS.map(p => p.value))
-          const logPos    = new Set(LOGISTICS_POSITIONS.map(p => p.value))
-          const finPos    = new Set(FINANCE_POSITIONS.map(p => p.value))
-          const agencyPos = new Set(['agency_representative'])
-          const sectionParts = [
-            { label: 'CMD', count: activeOpAssignments.filter(a => cmdPos.has(a.ics_position)).length },
-            { label: 'OPS', count: activeOpAssignments.filter(a => opsPos.has(a.ics_position)).length },
-            { label: 'PLN', count: activeOpAssignments.filter(a => planPos.has(a.ics_position)).length },
-            { label: 'LOG', count: activeOpAssignments.filter(a => logPos.has(a.ics_position)).length },
-            { label: 'FIN', count: activeOpAssignments.filter(a => finPos.has(a.ics_position)).length },
-            { label: 'AGY', count: activeOpAssignments.filter(a => agencyPos.has(a.ics_position)).length },
-          ].filter(s => s.count > 0)
-
           return (
             <section className="mb-8">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide">Personnel</p>
+                <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide">
+                  Personnel
+                  <span className="ml-2 font-mono text-[#4B5563] normal-case">{activeOpAssignments.length}</span>
+                </p>
                 <div className="flex items-center gap-1">
                   <Link
                     href={`/events/${id}/op/${activeOp.id}/staff`}
                     className="inline-flex items-center gap-1 text-xs font-medium text-[#22C55E] hover:text-[#34D399] transition-colors py-1 px-2 rounded-lg hover:bg-[#161D26]"
                   >
                     Org Chart
-                    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <path d="M5 12h14M12 5l7 7-7 7"/>
-                    </svg>
+                    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                   </Link>
                   <Link
                     href={`/events/${id}/roster`}
                     className="inline-flex items-center gap-1 text-xs font-medium text-[#6B7280] hover:text-[#E5E7EB] transition-colors py-1 px-2 -mr-2 rounded-lg hover:bg-[#161D26]"
                   >
-                    Roster
-                    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <path d="M5 12h14M12 5l7 7-7 7"/>
-                    </svg>
+                    Full Roster
+                    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                   </Link>
                 </div>
               </div>
 
-              <div className="bg-[#161D26] border border-[#232B36] rounded-2xl overflow-hidden">
+              {/* Status legend */}
+              <div className="flex items-center gap-3 mb-2 px-1">
+                <span className="flex items-center gap-1 text-[10px] text-[#6B7280]">
+                  <span className="w-2 h-2 rounded-full bg-[#22C55E] inline-block" /> Active
+                </span>
+                <span className="flex items-center gap-1 text-[10px] text-[#6B7280]">
+                  <span className="w-2 h-2 rounded-full bg-[#F59E0B] inline-block" /> Warning
+                </span>
+                <span className="flex items-center gap-1 text-[10px] text-[#6B7280]">
+                  <span className="w-2 h-2 rounded-full bg-[#EF4444] inline-block" /> Not checked in
+                </span>
+              </div>
 
-                {/* Count + readable section breakdown */}
-                <div className="px-4 py-3 border-b border-[#232B36]/60">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-xl font-bold text-[#E5E7EB] leading-none tabular-nums">
-                      {activeOpAssignments.length}
-                    </span>
-                    <span className="text-xs text-[#6B7280]">assigned · OP {activeOp.period_number}</span>
-                  </div>
-                  {sectionParts.length > 0 && (
-                    <p className="text-[11px] text-[#4B5563] font-mono mt-1 leading-relaxed">
-                      {sectionParts.map((s, i) => (
-                        <span key={s.label}>
-                          {i > 0 && <span className="mx-1 text-[#232B36]">·</span>}
-                          <span className="text-[#6B7280]">{s.label}</span>
-                          {' '}{s.count}
-                        </span>
-                      ))}
-                    </p>
-                  )}
-                </div>
+              {/* Collapsible sections */}
+              <div className="space-y-2">
+                {PERSONNEL_SECTIONS.map(section => {
+                  const sectionAssignments = activeOpAssignments.filter((a: any) => section.positions.has(a.ics_position))
+                  if (sectionAssignments.length === 0) return null
+                  const isExpanded = expandedSections.has(section.label)
+                  const LEADER_PRIORITY = [
+                    'incident_commander','deputy_incident_commander','safety_officer',
+                    'public_information_officer','liaison_officer',
+                    'operations_section_chief','planning_section_chief',
+                    'logistics_section_chief','finance_admin_section_chief',
+                    'branch_director','division_supervisor','division_group_supervisor',
+                    'group_supervisor','team_leader',
+                  ]
+                  const rank = (pos: string) => { const i = LEADER_PRIORITY.indexOf(pos); return i === -1 ? 999 : i }
+                  const sortedSection = [...sectionAssignments].sort((a, b) => rank(a.ics_position) - rank(b.ics_position))
 
-                {/* Leadership preview rows */}
-                {preview.map((a: any, i: number) => {
-                  const p = profileMap[a.user_id]
-                  const name = p?.full_name ?? 'Unknown'
-                  const roleTag = ROLE_TAG[a.ics_position]
-                  const badgeColor = roleTag ? badgeColorForPosition(a.ics_position) : null
-                  const isLast = i === preview.length - 1 && remaining <= 0
-                  const phoneNormalized = p?.phone_normalized ?? null
-                  const phoneDisplay    = p?.phone ?? phoneNormalized ?? null
                   return (
-                    <div key={a.id} className={`flex items-center gap-3 px-4 py-2.5 ${!isLast ? 'border-b border-[#232B36]/40' : ''}`}>
-                      {/* Avatar */}
-                      <div className="w-7 h-7 rounded-full bg-[#121821] border border-[#232B36] flex items-center justify-center text-xs font-mono text-[#9CA3AF] flex-shrink-0">
-                        {getInitials(name)}
-                      </div>
+                    <div key={section.label} className="bg-[#161D26] border border-[#232B36] rounded-2xl overflow-hidden">
+                      {/* Section header — clickable to expand/collapse */}
+                      <button
+                        type="button"
+                        onClick={() => toggleSection(section.label)}
+                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#1a2235] active:bg-[#1a2235] transition-colors select-none"
+                      >
+                        {/* Colored section dot */}
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: section.color }} />
+                        {/* Section name — left-aligned, bold */}
+                        <span className="text-xs font-bold uppercase tracking-widest flex-1 text-left" style={{ color: section.color }}>
+                          {section.label}
+                        </span>
+                        {/* Count badge */}
+                        <span
+                          className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded flex-shrink-0 mr-1.5 tabular-nums"
+                          style={{ color: section.color, backgroundColor: section.color + '18' }}
+                        >
+                          {sectionAssignments.length}
+                        </span>
+                        {/* Chevron */}
+                        <svg
+                          className="w-3.5 h-3.5 text-[#4B5563] flex-shrink-0 transition-transform duration-200"
+                          style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                          viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                        >
+                          <path d="M6 9l6 6 6-6"/>
+                        </svg>
+                      </button>
 
-                      {/* Name + role tag + phone */}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <p className="text-sm font-medium text-[#E5E7EB] truncate">{name}</p>
-                          {roleTag && badgeColor && (
-                            <span
-                              className="text-[10px] font-bold px-1.5 py-px rounded flex-shrink-0 font-mono"
-                              style={{ color: badgeColor, backgroundColor: badgeColor + '18' }}
-                            >
-                              {roleTag.tag}
-                            </span>
-                          )}
-                          {a.dual_hatted && (
-                            <span className="text-[10px] font-bold text-[#F59E0B] bg-[#F59E0B]/10 px-1.5 py-px rounded flex-shrink-0 font-mono hidden sm:inline">
-                              DH
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-[#4B5563] truncate leading-tight mt-px">
-                          {getPositionLabel(a.ics_position)}
-                        </p>
-                        {phoneDisplay && (
-                          <p className="text-[11px] text-[#374151] leading-tight mt-px font-mono tracking-tight">
-                            {phoneDisplay}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Status dot — text removed for mobile cleanliness; data-status kept for sort */}
-                      {(() => {
+                      {/* Animated section body */}
+                      <div
+                        className="overflow-hidden transition-all duration-200 ease-out"
+                        style={{ maxHeight: isExpanded ? `${sortedSection.length * 56 + 8}px` : '0px' }}
+                      >
+                      {sortedSection.map((a: any, i: number) => {
+                        const p = profileMap[a.user_id]
+                        const name = p?.full_name ?? 'Unknown'
+                        const roleTag = ROLE_TAG[a.ics_position]
+                        const badgeColor = roleTag ? badgeColorForPosition(a.ics_position) : null
+                        const isLast = i === sortedSection.length - 1
+                        const phoneNormalized = p?.phone_normalized ?? null
                         const status = activityStatus(a.user_id, lastEntryMap)
                         return (
-                          <div className="flex-shrink-0 flex items-center gap-1.5" data-status={status}>
-                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: STATUS_DOT_COLOR[status] }} />
-                            {a.user_id === currentUserId && (
-                              <span className="text-[10px] font-semibold text-[#FF5A1F] bg-[#FF5A1F]/10 px-1.5 py-0.5 rounded-full leading-none">You</span>
-                            )}
-                          </div>
+                          <button
+                            key={a.id}
+                            type="button"
+                            onClick={() => setSelectedPerson({ assignment: a, prof: p })}
+                            className={`w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[#1a2235] transition-colors text-left border-t border-[#232B36]/40 ${isLast ? '' : ''}`}
+                          >
+                            {/* Status dot */}
+                            <div
+                              className="w-2 h-2 rounded-full flex-shrink-0"
+                              style={{ backgroundColor: STATUS_DOT_COLOR[status] }}
+                              data-status={status}
+                            />
+                            {/* Avatar */}
+                            <div className="w-7 h-7 rounded-full bg-[#121821] border border-[#232B36] flex items-center justify-center text-xs font-mono text-[#9CA3AF] flex-shrink-0">
+                              {getInitials(name)}
+                            </div>
+                            {/* Name + role */}
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <p className="text-sm font-medium text-[#E5E7EB] truncate">{name}</p>
+                                {roleTag && badgeColor && (
+                                  <span className="text-[10px] font-bold px-1.5 py-px rounded flex-shrink-0 font-mono" style={{ color: badgeColor, backgroundColor: badgeColor + '18' }}>
+                                    {roleTag.tag}
+                                  </span>
+                                )}
+                                {a.user_id === currentUserId && (
+                                  <span className="text-[10px] font-semibold text-[#FF5A1F] bg-[#FF5A1F]/10 px-1.5 py-0.5 rounded-full leading-none flex-shrink-0">You</span>
+                                )}
+                              </div>
+                              <p className="text-xs text-[#4B5563] truncate leading-tight mt-px">{getPositionLabel(a.ics_position)}</p>
+                            </div>
+                            {/* Call + Text buttons */}
+                            <div className="flex items-center gap-1.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                              {phoneNormalized ? (
+                                <a
+                                  href={`tel:${phoneNormalized}`}
+                                  aria-label={`Call ${name}`}
+                                  className="inline-flex items-center gap-1 bg-[#16A34A] hover:bg-[#15803D] active:bg-[#166534] text-white text-xs font-semibold px-2.5 py-1.5 rounded-full transition-colors min-h-[32px]"
+                                >
+                                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.4a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.62 2.79h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 10.4a16 16 0 0 0 6 6l.96-1.96a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7a2 2 0 0 1 1.72 2.03z"/>
+                                  </svg>
+                                  <span className="hidden sm:inline">Call</span>
+                                </a>
+                              ) : null}
+                              {/* Text placeholder */}
+                              <button
+                                type="button"
+                                disabled
+                                title="SMS coming soon"
+                                className="inline-flex items-center gap-1 bg-[#121821] border border-[#232B36] text-[#4B5563] text-xs font-semibold px-2.5 py-1.5 rounded-full min-h-[32px] cursor-not-allowed"
+                              >
+                                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                                </svg>
+                              </button>
+                            </div>
+                          </button>
                         )
-                      })()}
-
-                      {/* Call pill — far right, only when phone_normalized exists */}
-                      {phoneNormalized ? (
-                        <a
-                          href={`tel:${phoneNormalized}`}
-                          aria-label={`Call ${name}`}
-                          onClick={e => {
-                            e.stopPropagation()
-                            console.log('Calling:', phoneNormalized, name)
-                            window.location.href = `tel:${phoneNormalized}`
-                          }}
-                          className="flex-shrink-0 inline-flex items-center gap-1 bg-[#16A34A] hover:bg-[#15803D] active:bg-[#166534] text-white text-xs font-semibold px-2.5 py-1.5 rounded-full transition-colors select-none min-h-[32px]"
-                        >
-                          <svg className="w-3 h-3 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.4a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.62 2.79h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 10.4a16 16 0 0 0 6 6l.96-1.96a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7a2 2 0 0 1 1.72 2.03z"/>
-                          </svg>
-                          <span className="hidden sm:inline">Call</span>
-                        </a>
-                      ) : (
-                        <div className="w-[60px] sm:w-[60px] flex-shrink-0" />
-                      )}
+                      })}
+                      </div>{/* end animated body */}
                     </div>
                   )
                 })}
-
-                {/* View full roster */}
-                <Link
-                  href={`/events/${id}/roster`}
-                  className="flex items-center justify-center gap-1.5 px-4 py-3 text-sm text-[#6B7280] hover:text-[#E5E7EB] hover:bg-[#1a2235] transition-colors border-t border-[#232B36]/60"
-                >
-                  {remaining > 0
-                    ? `+${remaining} more · View Full Roster`
-                    : 'View Full Roster'}
-                  <svg className="w-3.5 h-3.5 ml-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <path d="M5 12h14M12 5l7 7-7 7"/>
-                  </svg>
-                </Link>
               </div>
             </section>
           )
@@ -1149,39 +1222,42 @@ export default function EventDetailPage() {
           </div>
         )}
 
-        {/* 5 · RECENT ACTIVITY ──────────────────────────────── */}
+        {/* 5 · RECENT ACTIVITY — live feed ─────────────────── */}
         {recentEntries.length > 0 && activeOp && (
           <section className="mb-8">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide">Recent Activity</p>
+              <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide">My Recent Logs</p>
               <Link
                 href={`/events/${id}/op/${activeOp.id}/log`}
                 className="inline-flex items-center gap-1 text-xs font-medium text-[#6B7280] hover:text-[#E5E7EB] transition-colors py-1 px-2 -mr-2 rounded-lg hover:bg-[#161D26]"
               >
                 View all
-                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="M5 12h14M12 5l7 7-7 7"/>
-                </svg>
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
               </Link>
             </div>
-            <div className="relative">
-              <div className="absolute left-[5px] top-2 bottom-2 w-px bg-[#232B36]" />
-              <div className="space-y-0">
-                {recentEntries.map(entry => (
-                  <div key={entry.id} className="flex gap-4 pb-4">
-                    <div className="w-2.5 h-2.5 rounded-full bg-[#232B36] ring-1 ring-[#3a4555] flex-shrink-0 mt-1 relative z-10" />
-                    <div className="flex-1 min-w-0">
-                      <time className="text-xs font-mono text-[#FF5A1F]/70">
-                        {formatICSDateTime(entry.entry_time)}
-                      </time>
-                      <p className="text-sm text-[#E5E7EB] leading-relaxed mt-0.5 line-clamp-2">
-                        {entry.narrative}
-                      </p>
-                      <p className="text-xs text-[#6B7280] mt-1">{profile?.full_name}</p>
-                    </div>
+            <div className="bg-[#161D26] border border-[#232B36] rounded-2xl overflow-hidden divide-y divide-[#232B36]/50">
+              {recentEntries.map(entry => (
+                <Link
+                  key={entry.id}
+                  href={`/events/${id}/op/${activeOp.id}/log`}
+                  className="flex items-start gap-3 px-4 py-3 hover:bg-[#1a2235] transition-colors"
+                >
+                  {/* ICS 214 log icon */}
+                  <div className="w-7 h-7 rounded-lg bg-[#FF5A1F]/10 border border-[#FF5A1F]/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <svg className="w-3.5 h-3.5 text-[#FF5A1F]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                      <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
                   </div>
-                ))}
-              </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 justify-between">
+                      <p className="text-xs font-semibold text-[#9CA3AF]">{profile?.full_name}</p>
+                      <time className="text-[10px] font-mono text-[#4B5563] flex-shrink-0">{formatICSDateTime(entry.entry_time)}</time>
+                    </div>
+                    <p className="text-sm text-[#E5E7EB] leading-snug mt-0.5 line-clamp-2">{entry.narrative}</p>
+                  </div>
+                </Link>
+              ))}
             </div>
           </section>
         )}
@@ -1651,21 +1727,138 @@ export default function EventDetailPage() {
 
       </main>
 
-      {/* ── MOBILE STICKY BOTTOM BAR ─────────────────────────── */}
-      {myAssignment && activeOp && (
-        <div className="sm:hidden fixed bottom-0 left-0 right-0 z-30 bg-[#0B0F14]/95 backdrop-blur-sm border-t border-[#232B36] px-4 py-3">
-          <Link
-            href={`/events/${id}/op/${activeOp.id}/log`}
-            className="w-full flex items-center justify-center gap-2 bg-[#FF5A1F] hover:bg-[#FF6A33] active:bg-[#E14A12] active:scale-[0.98] text-white px-4 py-3 rounded-2xl text-sm font-bold transition-all"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-            </svg>
-            Log ICS 214 – OP {activeOp.period_number}
-          </Link>
+      {/* ── FLOATING ACTION BAR (mobile-first, minimal on desktop) ── */}
+      {activeOp && (
+        <div className="fixed bottom-0 left-0 right-0 z-30 bg-[#0B0F14]/95 backdrop-blur-sm border-t border-[#232B36] px-4 py-3 sm:hidden">
+          <div className="flex items-center gap-2 max-w-sm mx-auto">
+            {/* Call IC */}
+            {supervisorProfile?.phone_normalized ? (
+              <a
+                href={`tel:${supervisorProfile.phone_normalized}`}
+                className="flex-1 flex flex-col items-center gap-1 py-2 rounded-xl bg-[#161D26] border border-[#232B36] hover:bg-[#1a2235] transition-colors"
+              >
+                <svg className="w-4 h-4 text-[#22C55E]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.4a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.62 2.79h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 10.4a16 16 0 0 0 6 6l.96-1.96a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7a2 2 0 0 1 1.72 2.03z"/>
+                </svg>
+                <span className="text-[10px] font-semibold text-[#9CA3AF]">Call IC</span>
+              </a>
+            ) : (
+              <div className="flex-1 flex flex-col items-center gap-1 py-2 rounded-xl bg-[#161D26] border border-[#232B36] opacity-40 cursor-not-allowed">
+                <svg className="w-4 h-4 text-[#6B7280]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.4a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.62 2.79h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 10.4a16 16 0 0 0 6 6l.96-1.96a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7a2 2 0 0 1 1.72 2.03z"/>
+                </svg>
+                <span className="text-[10px] font-semibold text-[#6B7280]">Call IC</span>
+              </div>
+            )}
+            {/* Log ICS 214 — primary action */}
+            {myAssignment ? (
+              <Link
+                href={`/events/${id}/op/${activeOp.id}/log`}
+                className="flex-[2] flex flex-col items-center gap-1 py-2 rounded-xl bg-[#FF5A1F] hover:bg-[#FF6A33] active:bg-[#E14A12] transition-colors"
+              >
+                <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+                <span className="text-[10px] font-bold text-white">Log ICS 214</span>
+              </Link>
+            ) : (
+              <div className="flex-[2] flex flex-col items-center gap-1 py-2 rounded-xl bg-[#161D26] border border-[#232B36] opacity-40 cursor-not-allowed">
+                <svg className="w-4 h-4 text-[#6B7280]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+                <span className="text-[10px] font-semibold text-[#6B7280]">Log ICS 214</span>
+              </div>
+            )}
+            {/* Roster */}
+            <Link
+              href={`/events/${id}/roster`}
+              className="flex-1 flex flex-col items-center gap-1 py-2 rounded-xl bg-[#161D26] border border-[#232B36] hover:bg-[#1a2235] transition-colors"
+            >
+              <svg className="w-4 h-4 text-[#9CA3AF]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+              <span className="text-[10px] font-semibold text-[#9CA3AF]">Roster</span>
+            </Link>
+          </div>
         </div>
       )}
+
+      {/* ── PERSON DETAIL OVERLAY ────────────────────────────── */}
+      {selectedPerson && (() => {
+        const { assignment: a, prof: p } = selectedPerson
+        const status = activityStatus(a.user_id, lastEntryMap)
+        const statusLabel = status === 'active' ? 'Active' : status === 'warning' ? 'Warning' : 'Not checked in'
+        return (
+          <div
+            className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 px-4 pb-4 sm:pb-0"
+            onClick={() => setSelectedPerson(null)}
+          >
+            <div
+              className="bg-[#161D26] border border-[#232B36] rounded-2xl w-full max-w-sm overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between px-5 pt-5 pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-[#121821] border border-[#232B36] flex items-center justify-center text-sm font-mono text-[#9CA3AF]">
+                    {getInitials(p?.full_name ?? '?')}
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-[#E5E7EB]">{p?.full_name ?? 'Unknown'}</p>
+                    <p className="text-xs text-[#6B7280] mt-px">{getPositionLabel(a.ics_position)}</p>
+                  </div>
+                </div>
+                <button onClick={() => setSelectedPerson(null)} className="text-[#6B7280] hover:text-[#9CA3AF] transition-colors mt-0.5">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+              </div>
+              <div className="px-5 pb-2 flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: STATUS_DOT_COLOR[status] }} />
+                <span className="text-xs text-[#9CA3AF]">{statusLabel}</span>
+                {a.dual_hatted && (
+                  <span className="text-[10px] font-bold text-[#F59E0B] bg-[#F59E0B]/10 px-1.5 py-px rounded font-mono">Dual-hatted</span>
+                )}
+              </div>
+              {(p?.phone || p?.phone_normalized) && (
+                <div className="px-5 pb-3">
+                  <p className="text-xs text-[#6B7280]">Phone</p>
+                  <p className="text-sm font-mono text-[#E5E7EB] mt-0.5">{p.phone ?? p.phone_normalized}</p>
+                </div>
+              )}
+              <div className="px-5 pb-5 flex gap-2">
+                {p?.phone_normalized ? (
+                  <a
+                    href={`tel:${p.phone_normalized}`}
+                    className="flex-1 flex items-center justify-center gap-2 bg-[#16A34A] hover:bg-[#15803D] text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.4a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.62 2.79h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 10.4a16 16 0 0 0 6 6l.96-1.96a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7a2 2 0 0 1 1.72 2.03z"/>
+                    </svg>
+                    Call
+                  </a>
+                ) : (
+                  <div className="flex-1 flex items-center justify-center gap-2 bg-[#121821] border border-[#232B36] text-[#4B5563] text-sm font-semibold py-2.5 rounded-xl cursor-not-allowed">
+                    No Phone
+                  </div>
+                )}
+                <button
+                  type="button"
+                  disabled
+                  title="SMS coming soon"
+                  className="flex-1 flex items-center justify-center gap-2 bg-[#121821] border border-[#232B36] text-[#4B5563] text-sm font-semibold py-2.5 rounded-xl cursor-not-allowed"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                  </svg>
+                  Text
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
     </div>
   )
