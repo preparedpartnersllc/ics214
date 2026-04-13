@@ -55,6 +55,22 @@ export async function POST(request: Request) {
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://ics214.com'
 
+  // Clean up any stale profile row for this email before creating the invite.
+  // This happens when a user was previously deleted: their auth user is gone but
+  // a profile row may remain, causing the handle_new_user trigger to conflict.
+  const { data: staleProfile } = await adminSupabase
+    .from('profiles')
+    .select('id')
+    .eq('email', email)
+    .maybeSingle()
+  if (staleProfile) {
+    // Only remove it if there's no live auth user backing it
+    const { data: authUser } = await adminSupabase.auth.admin.getUserById(staleProfile.id)
+    if (!authUser?.user) {
+      await adminSupabase.from('profiles').delete().eq('id', staleProfile.id)
+    }
+  }
+
   // Generate the invite link without relying on Supabase SMTP
   const { data: linkData, error: linkError } = await adminSupabase.auth.admin.generateLink({
     type: 'invite',
