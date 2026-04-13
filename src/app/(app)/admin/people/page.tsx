@@ -134,7 +134,7 @@ export default function PeoplePage() {
     setProfiles(prev => prev.map(p => p.id === userId ? { ...p, role } : p))
   }
 
-  // ── Temp password ────────────────────────────────────────────────
+  // -- Temp password ------------------------------------------------
   function openTempPw(userId: string) {
     setTempPwUserId(userId)
     setTempPwValue('')
@@ -175,7 +175,7 @@ export default function PeoplePage() {
     ))
   }
 
-  // ── SMS invite ───────────────────────────────────────────────────
+  // -- SMS invite ---------------------------------------------------
   async function sendSmsInvite(userId: string) {
     setSmsInviting(userId)
     setSmsErrors(prev => { const n = { ...prev }; delete n[userId]; return n })
@@ -194,7 +194,7 @@ export default function PeoplePage() {
     setSmsInviting(null)
   }
 
-  // ── Delete account ───────────────────────────────────────────────
+  // -- Delete account -----------------------------------------------
   async function deleteAccount() {
     if (!confirmDelete) return
     setDeleting(true)
@@ -215,7 +215,7 @@ export default function PeoplePage() {
     setDeleting(false)
   }
 
-  // ── Force reset (flag only, no password change) ─────────────────
+  // -- Force reset (flag only, no password change) -----------------
   async function forceReset(userId: string) {
     setForcingReset(userId)
     const res = await fetch('/api/admin/set-temp-password', {
@@ -249,7 +249,7 @@ export default function PeoplePage() {
   return (
     <div className="min-h-screen bg-[#0B0F14] flex flex-col">
 
-      {/* ── Temp password modal ── */}
+      {/* -- Temp password modal -- */}
       {tempPwUserId && (() => {
         const person = profiles.find(p => p.id === tempPwUserId)
         return (
@@ -322,7 +322,7 @@ export default function PeoplePage() {
         )
       })()}
 
-      {/* ── Delete confirmation modal ── */}
+      {/* -- Delete confirmation modal -- */}
       {confirmDelete && (() => {
         const person = profiles.find(p => p.id === confirmDelete)
         const orphan = orphans.find(o => o.id === confirmDelete)

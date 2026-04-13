@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react'
 import type { MapMarker, MapMarkerType, EventBoundary, BoundaryZoneType } from '@/types'
 
-// ── Types ────────────────────────────────────────────────────
+// -- Types ----------------------------------------------------
 export interface UserLocationPin {
   userId: string
   lat: number
@@ -43,7 +43,7 @@ export interface EventMapProps {
   centerTrigger?: { lat: number; lng: number; zoom: number; seq: number } | null
 }
 
-// ── Icon helpers ─────────────────────────────────────────────
+// -- Icon helpers ---------------------------------------------
 function svgDataUrl(svg: string) {
   return `data:image/svg+xml;base64,${btoa(svg)}`
 }
@@ -66,7 +66,7 @@ function crosshairIcon() {
   return svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="#6B7280" stroke-width="1.5" stroke-dasharray="3,2"/><circle cx="8" cy="8" r="2" fill="#6B7280"/></svg>`)
 }
 
-// ── Boundary colors by zone type ─────────────────────────────
+// -- Boundary colors by zone type -----------------------------
 const ZONE_COLORS: Record<BoundaryZoneType, { stroke: string; fill: string; label: string }> = {
   perimeter:    { stroke: '#E5E7EB', fill: '#E5E7EB', label: 'Perimeter' },
   hazard_zone:  { stroke: '#EF4444', fill: '#EF4444', label: 'Hazard Zone' },
@@ -86,12 +86,12 @@ const MARKER_LABELS: Record<MapMarkerType, string> = {
   hazard:   'Hazard',
 }
 
-// ── Stale threshold: 10 minutes ──────────────────────────────
+// -- Stale threshold: 10 minutes ------------------------------
 function isStaleLocation(lastUpdated: string): boolean {
   return Date.now() - new Date(lastUpdated).getTime() > 10 * 60 * 1000
 }
 
-// ── Component ────────────────────────────────────────────────
+// -- Component ------------------------------------------------
 export default function EventMap({
   initialUserLat,
   initialUserLng,
@@ -122,7 +122,7 @@ export default function EventMap({
   const boundaryLayerRef = useRef<any>(null)
   const drawPreviewRef   = useRef<any>(null)
 
-  // ── Init map once ─────────────────────────────────────────
+  // -- Init map once -----------------------------------------
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
     let map: any
@@ -183,14 +183,14 @@ export default function EventMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ── Update cursor for draw mode ───────────────────────────
+  // -- Update cursor for draw mode ---------------------------
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
     el.style.cursor = drawMode !== 'none' ? 'crosshair' : ''
   }, [drawMode])
 
-  // ── Incident/resource/hazard markers ─────────────────────
+  // -- Incident/resource/hazard markers ---------------------
   useEffect(() => {
     if (!markerLayerRef.current) return
     ;(async () => {
@@ -213,7 +213,7 @@ export default function EventMap({
     })()
   }, [markers, isAdmin, onDeleteMarker])
 
-  // ── User location dots ────────────────────────────────────
+  // -- User location dots ------------------------------------
   useEffect(() => {
     if (!userLayerRef.current) return
     ;(async () => {
@@ -229,7 +229,7 @@ export default function EventMap({
     })()
   }, [userLocations])
 
-  // ── Boundary shapes ───────────────────────────────────────
+  // -- Boundary shapes ---------------------------------------
   useEffect(() => {
     if (!boundaryLayerRef.current) return
     ;(async () => {
@@ -265,7 +265,7 @@ export default function EventMap({
     })()
   }, [boundaries, isAdmin, onDeleteBoundary])
 
-  // ── Draw preview (polygon dots / rectangle first corner) ──
+  // -- Draw preview (polygon dots / rectangle first corner) --
   useEffect(() => {
     if (!drawPreviewRef.current) return
     ;(async () => {
@@ -285,14 +285,14 @@ export default function EventMap({
     })()
   }, [drawPoints, drawMode])
 
-  // ── Global delete callbacks for popup buttons ─────────────
+  // -- Global delete callbacks for popup buttons -------------
   useEffect(() => {
     ;(window as any).__mapDel = (id: string) => { onDeleteMarker?.(id); mapRef.current?.closePopup() }
     ;(window as any).__mapDelBoundary = (id: string) => { onDeleteBoundary?.(id); mapRef.current?.closePopup() }
     return () => { delete (window as any).__mapDel; delete (window as any).__mapDelBoundary }
   }, [onDeleteMarker, onDeleteBoundary])
 
-  // ── Programmatic pan ──────────────────────────────────────
+  // -- Programmatic pan --------------------------------------
   useEffect(() => {
     if (centerTrigger && mapRef.current) {
       mapRef.current.setView([centerTrigger.lat, centerTrigger.lng], centerTrigger.zoom, { animate: true })

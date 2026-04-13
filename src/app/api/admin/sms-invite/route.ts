@@ -16,7 +16,7 @@ import { isAdminRole } from '@/lib/roles'
 //
 // Returns { success: true } or { error: string }.
 export async function POST(request: Request) {
-  // ── Verify caller is an authenticated admin ──────────────────────────────
+  // -- Verify caller is an authenticated admin ------------------------------
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return new NextResponse('Unauthorized', { status: 401 })
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   let firstName = ''
 
   if (body.userId) {
-    // ── Profile-based invite ─────────────────────────────────────────────
+    // -- Profile-based invite ---------------------------------------------
     const admin = createAdminClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
     firstName = profile.full_name?.split(' ')[0] ?? ''
 
   } else if (body.phone) {
-    // ── Direct phone number invite ───────────────────────────────────────
+    // -- Direct phone number invite ---------------------------------------
     const normalized = normalizePhone(body.phone)
     if (!normalized) {
       return NextResponse.json(
@@ -74,14 +74,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'userId or phone required' }, { status: 400 })
   }
 
-  // ── Build message ─────────────────────────────────────────────────────────
+  // -- Build message ---------------------------------------------------------
   // Keep message under 160 chars and GSM-7 only (no em dashes, smart quotes,
   // etc.) so it sends as a single segment. Unicode forces 70-char segments
   // which carriers aggressively filter on unregistered / new numbers.
   const greeting = firstName ? `Hi ${firstName} - ` : ''
   const message = `${greeting}You're invited to Command OS (Detroit Fire Department). Sign in or create your account: ${siteUrl}/login`
 
-  // ── Send ──────────────────────────────────────────────────────────────────
+  // -- Send ------------------------------------------------------------------
   const result = await sendSMS(to, message)
   console.log('[sms-invite]', { userId: body.userId, phone: body.phone, to, result })
 

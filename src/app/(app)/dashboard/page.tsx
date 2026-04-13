@@ -50,7 +50,7 @@ export default async function DashboardPage() {
     <div className="min-h-screen bg-[#0B0F14] flex flex-col">
       <main className="flex-1 px-4 pt-8 pb-12 max-w-2xl mx-auto w-full">
 
-        {/* ── 1 · WELCOME ─────────────────────────────────────── */}
+        {/* -- 1 · WELCOME --------------------------------------- */}
         <div className="mb-7">
           <p className="text-xs font-semibold text-[#FF5A1F] uppercase tracking-widest mb-1">
             Welcome back
@@ -61,7 +61,7 @@ export default async function DashboardPage() {
           <p className="text-sm text-[#6B7280] mt-1">{roleLabel(profile.role)}</p>
         </div>
 
-        {/* ── 2 · PRIMARY ACTION (admin only) ─────────────────── */}
+        {/* -- 2 · PRIMARY ACTION (admin only) ------------------- */}
         {isAdmin && (
           <div className="mb-8">
             <Link
@@ -84,7 +84,7 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        {/* ── 3 · ACTIVE EVENTS ───────────────────────────────── */}
+        {/* -- 3 · ACTIVE EVENTS --------------------------------- */}
         {activeEvents.length > 0 && (
           <div className="mb-8">
             <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide mb-3">
@@ -113,7 +113,7 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        {/* ── 4 · RECENT EVENTS (non-admin sees active only; skip if same list) ── */}
+        {/* -- 4 · RECENT EVENTS (non-admin sees active only; skip if same list) -- */}
         {!isMember && recentEvents.filter(e => e.status !== 'active').length > 0 && (
           <div className="mb-8">
             <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide mb-3">Recent Events</p>
@@ -165,7 +165,7 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        {/* ── 5 · QUICK ACCESS ────────────────────────────────── */}
+        {/* -- 5 · QUICK ACCESS ---------------------------------- */}
         <div>
           <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide mb-3">Quick Access</p>
           <div className="space-y-2">

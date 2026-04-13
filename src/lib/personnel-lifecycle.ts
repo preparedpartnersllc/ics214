@@ -1,4 +1,4 @@
-// ── Personnel lifecycle state ─────────────────────────────────────────────────
+// -- Personnel lifecycle state -------------------------------------------------
 //
 // State is DERIVED — not stored — from the combination of:
 //   personnel_checkins + assignments + demob_requests records.

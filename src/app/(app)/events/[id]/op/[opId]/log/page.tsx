@@ -163,7 +163,7 @@ export default function LogPage() {
   return (
     <div className="min-h-screen bg-[#0B0F14] flex flex-col">
 
-      {/* ── STICKY CONTEXT HEADER ─────────────────────────────── */}
+      {/* -- STICKY CONTEXT HEADER ------------------------------- */}
       <header className="sticky top-12 z-20 bg-[#0B0F14]/95 backdrop-blur-sm border-b border-[#232B36]/70">
         <div className="px-4 py-2.5 sm:py-3 max-w-2xl mx-auto flex items-center justify-between gap-4">
           <div className="min-w-0">
@@ -195,7 +195,7 @@ export default function LogPage() {
         </div>
       </header>
 
-      {/* ── MAIN CONTENT ──────────────────────────────────────── */}
+      {/* -- MAIN CONTENT ---------------------------------------- */}
       <main className="flex-1 px-4 pt-4 sm:pt-6 pb-8 max-w-2xl mx-auto w-full">
 
         {/* PRIMARY INPUT AREA */}
@@ -366,7 +366,7 @@ export default function LogPage() {
         </div>
       </main>
 
-      {/* ── SUCCESS TOAST ─────────────────────────────────────── */}
+      {/* -- SUCCESS TOAST --------------------------------------- */}
       {showToast && (
         <div className="fixed bottom-8 left-1/2 z-50 pointer-events-none animate-toast">
           <div className="flex items-center gap-2.5 bg-[#161D26] border border-[#232B36] text-[#E5E7EB] text-sm font-medium px-5 py-3 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] whitespace-nowrap">

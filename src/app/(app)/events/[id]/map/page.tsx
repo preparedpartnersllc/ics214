@@ -18,7 +18,7 @@ const EventMap = dynamic(() => import('@/components/EventMap'), {
   ),
 })
 
-// ── Geocode via Nominatim ────────────────────────────────────
+// -- Geocode via Nominatim ------------------------------------
 async function geocode(address: string): Promise<{ lat: number; lng: number } | null> {
   try {
     const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`
@@ -29,7 +29,7 @@ async function geocode(address: string): Promise<{ lat: number; lng: number } | 
   return null
 }
 
-// ── Zone display config ──────────────────────────────────────
+// -- Zone display config --------------------------------------
 const ZONE_OPTIONS: { value: BoundaryZoneType; label: string; color: string }[] = [
   { value: 'perimeter',    label: 'Perimeter',    color: '#E5E7EB' },
   { value: 'hazard_zone',  label: 'Hazard Zone',  color: '#EF4444' },
@@ -52,13 +52,13 @@ const MARKER_COLORS: Record<MapMarkerType, string> = {
 type DrawMode = 'none' | 'circle' | 'rectangle' | 'polygon'
 type ActiveMode = 'marker' | DrawMode
 
-// ── Page ─────────────────────────────────────────────────────
+// -- Page -----------------------------------------------------
 export default function MapPage() {
   const params   = useParams()
   const router   = useRouter()
   const id       = params.id as string
 
-  // ── Core state ───────────────────────────────────────────
+  // -- Core state -------------------------------------------
   const [event, setEvent]             = useState<any>(null)
   const [profile, setProfile]         = useState<any>(null)
   const [markers, setMarkers]         = useState<MapMarker[]>([])
@@ -68,16 +68,16 @@ export default function MapPage() {
   const [userCoords, setUserCoords]   = useState<{ lat: number; lng: number } | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
-  // ── Visibility toggles ───────────────────────────────────
+  // -- Visibility toggles -----------------------------------
   const [showMarkers,    setShowMarkers]    = useState(true)
   const [showPeople,     setShowPeople]     = useState(true)
   const [showBoundaries, setShowBoundaries] = useState(true)
 
-  // ── Location sharing ─────────────────────────────────────
+  // -- Location sharing -------------------------------------
   const [sharingLocation, setSharingLocation] = useState(false)
   const locationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // ── Follow-me mode ───────────────────────────────────────
+  // -- Follow-me mode ---------------------------------------
   // followModeRef drives callbacks (avoids stale closures in intervals)
   // followMode drives the UI (button highlight, banner)
   const [followMode, setFollowMode] = useState(false)
@@ -87,11 +87,11 @@ export default function MapPage() {
     setFollowMode(val)
   }
 
-  // ── Draw mode ────────────────────────────────────────────
+  // -- Draw mode --------------------------------------------
   const [activeMode, setActiveMode]   = useState<ActiveMode>('marker')
   const [drawPoints, setDrawPoints]   = useState<[number, number][]>([])
 
-  // ── Marker modal ─────────────────────────────────────────
+  // -- Marker modal -----------------------------------------
   const [pendingMarkerCoords, setPendingMarkerCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [markerType,   setMarkerType]   = useState<MapMarkerType>('incident')
   const [markerTitle,  setMarkerTitle]  = useState('')
@@ -99,7 +99,7 @@ export default function MapPage() {
   const [markerSaving, setMarkerSaving] = useState(false)
   const [markerError,  setMarkerError]  = useState<string | null>(null)
 
-  // ── Boundary modal ───────────────────────────────────────
+  // -- Boundary modal ---------------------------------------
   const [pendingBoundary, setPendingBoundary] = useState<{
     shape: BoundaryShape
     center?: [number, number]
@@ -112,16 +112,16 @@ export default function MapPage() {
   const [bSaving,       setBSaving]       = useState(false)
   const [bError,        setBError]        = useState<string | null>(null)
 
-  // ── Programmatic pan ─────────────────────────────────────
+  // -- Programmatic pan -------------------------------------
   const [centerTrigger, setCenterTrigger] = useState<{ lat: number; lng: number; zoom: number; seq: number } | null>(null)
 
-  // ── Search ───────────────────────────────────────────────
+  // -- Search -----------------------------------------------
   const [searchQuery, setSearchQuery] = useState('')
   const [searchOpen,  setSearchOpen]  = useState(false)
 
   const isAdmin = isAdminRole(profile?.role)
 
-  // ── Derived: search results ──────────────────────────────
+  // -- Derived: search results ------------------------------
   const searchResults = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     if (!q) return []
@@ -140,7 +140,7 @@ export default function MapPage() {
     return results.slice(0, 8)
   }, [searchQuery, userLocations, markers])
 
-  // ── Load all data ────────────────────────────────────────
+  // -- Load all data ----------------------------------------
   useEffect(() => {
     load()
     return () => { locationIntervalRef.current && clearInterval(locationIntervalRef.current) }
@@ -194,7 +194,7 @@ export default function MapPage() {
     }
   }
 
-  // ── Location sharing ─────────────────────────────────────
+  // -- Location sharing -------------------------------------
   // name is passed in explicitly to avoid stale state closures in callbacks
   function requestUserLocation(uid: string, name: string) {
     if (!navigator.geolocation) return
@@ -253,7 +253,7 @@ export default function MapPage() {
     setFollow(false)
   }
 
-  // ── Map click handler ────────────────────────────────────
+  // -- Map click handler ------------------------------------
   const handleMapClick = useCallback((lat: number, lng: number) => {
     if (activeMode === 'marker') {
       if (!isAdmin) return
@@ -283,7 +283,7 @@ export default function MapPage() {
     }
   }, [activeMode, isAdmin])
 
-  // ── User interaction — disables follow mode ──────────────
+  // -- User interaction — disables follow mode --------------
   const handleUserInteraction = useCallback(() => {
     setFollow(false)
   }, [])
@@ -300,7 +300,7 @@ export default function MapPage() {
     setBTitle(''); setBDesc(''); setBZoneType('perimeter'); setBError(null)
   }
 
-  // ── Save marker ──────────────────────────────────────────
+  // -- Save marker ------------------------------------------
   async function saveMarker(e: React.FormEvent) {
     e.preventDefault()
     if (!pendingMarkerCoords || !markerTitle.trim()) return
@@ -321,14 +321,14 @@ export default function MapPage() {
     setMarkerSaving(false)
   }
 
-  // ── Delete marker ────────────────────────────────────────
+  // -- Delete marker ----------------------------------------
   const handleDeleteMarker = useCallback(async (mid: string) => {
     const supabase = createClient()
     const { error } = await supabase.from('event_markers').delete().eq('id', mid)
     if (!error) setMarkers(prev => prev.filter(m => m.id !== mid))
   }, [])
 
-  // ── Save boundary ────────────────────────────────────────
+  // -- Save boundary ----------------------------------------
   async function saveBoundary(e: React.FormEvent) {
     e.preventDefault()
     if (!pendingBoundary || !bTitle.trim()) return
@@ -365,14 +365,14 @@ export default function MapPage() {
     setBSaving(false)
   }
 
-  // ── Delete boundary ──────────────────────────────────────
+  // -- Delete boundary --------------------------------------
   const handleDeleteBoundary = useCallback(async (bid: string) => {
     const supabase = createClient()
     const { error } = await supabase.from('event_boundaries').delete().eq('id', bid)
     if (!error) setBoundaries(prev => prev.filter(b => b.id !== bid))
   }, [])
 
-  // ── Center helpers ───────────────────────────────────────
+  // -- Center helpers ---------------------------------------
   function centerOnMe() {
     if (userCoords) {
       setFollow(true)
@@ -395,7 +395,7 @@ export default function MapPage() {
     }
   }
 
-  // ── Computed ─────────────────────────────────────────────
+  // -- Computed ---------------------------------------------
   if (!event) return (
     <div className="min-h-screen bg-[#0B0F14] flex items-center justify-center">
       <p className="text-[#6B7280] text-sm">Loading…</p>
@@ -419,7 +419,7 @@ export default function MapPage() {
   return (
     <div className="h-screen bg-[#0B0F14] flex flex-col overflow-hidden">
 
-      {/* ── HEADER ───────────────────────────────────────────── */}
+      {/* -- HEADER --------------------------------------------- */}
       <header className="flex-shrink-0 bg-[#0B0F14]/95 backdrop-blur-sm border-b border-[#232B36]/70 z-10">
         <div className="px-3 py-2 flex items-center gap-2">
           <Link
@@ -432,7 +432,7 @@ export default function MapPage() {
             <span className="max-w-[90px] truncate">{event.name}</span>
           </Link>
 
-          {/* ── Search bar ── */}
+          {/* -- Search bar -- */}
           <div className="flex-1 relative min-w-0">
             <div className="relative">
               <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-[#4B5563] pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -469,7 +469,7 @@ export default function MapPage() {
             )}
           </div>
 
-          {/* ── Layer toggles ── */}
+          {/* -- Layer toggles -- */}
           <div className="flex items-center gap-1 flex-shrink-0">
             <ToggleBtn active={showMarkers} onClick={() => setShowMarkers(v => !v)} title="Markers">
               <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
@@ -482,7 +482,7 @@ export default function MapPage() {
             </ToggleBtn>
           </div>
 
-          {/* ── Location sharing ── */}
+          {/* -- Location sharing -- */}
           <button
             onClick={sharingLocation ? stopSharing : startSharing}
             className={`flex-shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium transition-all ${
@@ -496,7 +496,7 @@ export default function MapPage() {
           </button>
         </div>
 
-        {/* ── Admin toolbar ── */}
+        {/* -- Admin toolbar -- */}
         {isAdmin && (
           <div className="px-3 py-1.5 border-t border-[#232B36]/50 bg-[#161D26]/50 flex items-center gap-1.5 overflow-x-auto">
             <span className="text-xs text-[#6B7280] font-medium flex-shrink-0 mr-1">Draw:</span>
@@ -539,7 +539,7 @@ export default function MapPage() {
         )}
       </header>
 
-      {/* ── MAP ──────────────────────────────────────────────── */}
+      {/* -- MAP ------------------------------------------------ */}
       <div className="flex-1 relative" style={{ minHeight: 0 }}>
         <EventMap
           initialUserLat={userCoords?.lat ?? null}
@@ -560,7 +560,7 @@ export default function MapPage() {
           onUserInteraction={handleUserInteraction}
         />
 
-        {/* ── Floating action buttons (bottom-right, above Leaflet zoom) ── */}
+        {/* -- Floating action buttons (bottom-right, above Leaflet zoom) -- */}
         <div className="absolute bottom-16 right-3 z-[1000] flex flex-col gap-1.5">
           {/* Center-on-me — always shown; re-enables follow mode */}
           <MapFab onClick={centerOnMe} title={followMode ? 'Following you' : 'Center on me'} active={followMode}>
@@ -573,7 +573,7 @@ export default function MapPage() {
           )}
         </div>
 
-        {/* ── Follow paused banner ── */}
+        {/* -- Follow paused banner -- */}
         {sharingLocation && !followMode && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] bg-[#0B0F14]/90 backdrop-blur-sm border border-[#232B36]/70 rounded-full px-3 py-1.5 flex items-center gap-2 pointer-events-auto">
             <span className="text-xs text-[#6B7280]">Following paused</span>
@@ -583,14 +583,14 @@ export default function MapPage() {
           </div>
         )}
 
-        {/* ── Draw hint (mobile, non-admin mode) ── */}
+        {/* -- Draw hint (mobile, non-admin mode) -- */}
         {isAdmin && activeMode !== 'marker' && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] bg-[#0B0F14]/90 border border-[#232B36]/60 rounded-full px-3 py-1.5 sm:hidden">
             <p className="text-xs text-[#9CA3AF]">{drawModeHint[activeMode]}</p>
           </div>
         )}
 
-        {/* ── Legend ── */}
+        {/* -- Legend -- */}
         <div className="absolute bottom-4 left-3 z-[1000] bg-[#0B0F14]/80 backdrop-blur-sm border border-[#232B36]/60 rounded-xl px-2.5 py-2 space-y-1">
           <LegendRow color="#EF4444" label="Incident" />
           <LegendRow color="#3B82F6" label="Resource" />
@@ -603,7 +603,7 @@ export default function MapPage() {
         </div>
       </div>
 
-      {/* ── ADD MARKER MODAL ────────────────────────────────── */}
+      {/* -- ADD MARKER MODAL ---------------------------------- */}
       {pendingMarkerCoords && (
         <BottomSheet onClose={() => setPendingMarkerCoords(null)} title="Add Marker">
           <form onSubmit={saveMarker} className="space-y-3">
@@ -635,7 +635,7 @@ export default function MapPage() {
         </BottomSheet>
       )}
 
-      {/* ── ADD BOUNDARY MODAL ──────────────────────────────── */}
+      {/* -- ADD BOUNDARY MODAL -------------------------------- */}
       {pendingBoundary && (
         <BottomSheet onClose={cancelDraw} title={`Draw ${pendingBoundary.shape.charAt(0).toUpperCase() + pendingBoundary.shape.slice(1)}`}>
           <form onSubmit={saveBoundary} className="space-y-3">
@@ -677,7 +677,7 @@ export default function MapPage() {
   )
 }
 
-// ── Small reusable sub-components ────────────────────────────
+// -- Small reusable sub-components ----------------------------
 
 function ToggleBtn({ active, onClick, title, children }: {
   active: boolean; onClick: () => void; title: string; children: React.ReactNode

@@ -1,4 +1,4 @@
-// ── ICS 214 Accountability ───────────────────────────────────────────────────
+// -- ICS 214 Accountability ---------------------------------------------------
 //
 // Single source of truth for activity-status logic used across:
 //   • Event detail page (personnel summary)
@@ -12,7 +12,7 @@
 /** Minutes of silence after which status degrades from ACTIVE → WARNING */
 export const ACTIVE_THRESHOLD_MIN = 15
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// -- Types --------------------------------------------------------------------
 
 export type ActivityStatus = 'active' | 'warning' | 'not_checked_in'
 
@@ -23,7 +23,7 @@ export type ActivityStatus = 'active' | 'warning' | 'not_checked_in'
  */
 export type LastEntryMap = Record<string, string>
 
-// ── Status logic ─────────────────────────────────────────────────────────────
+// -- Status logic -------------------------------------------------------------
 
 export function activityStatus(userId: string, map: LastEntryMap): ActivityStatus {
   const last = map[userId]
@@ -32,7 +32,7 @@ export function activityStatus(userId: string, map: LastEntryMap): ActivityStatu
   return mins <= ACTIVE_THRESHOLD_MIN ? 'active' : 'warning'
 }
 
-// ── Display helpers ──────────────────────────────────────────────────────────
+// -- Display helpers ----------------------------------------------------------
 
 export const STATUS_DOT_COLOR: Record<ActivityStatus, string> = {
   active:          '#22C55E',  // green-500
@@ -55,7 +55,7 @@ export function fmtAgo(iso: string): string {
   return `${Math.floor(hrs / 24)}d ago`
 }
 
-// ── Query helper ─────────────────────────────────────────────────────────────
+// -- Query helper -------------------------------------------------------------
 
 /**
  * Given a Supabase client and an operational period ID, fetches the latest

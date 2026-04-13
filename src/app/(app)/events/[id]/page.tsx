@@ -52,7 +52,7 @@ function getSupervisorPosition(icsPosition: string): string | null {
   return 'incident_commander'
 }
 
-// ── Personnel section definitions (module-level) ─────────────────────────────
+// -- Personnel section definitions (module-level) -----------------------------
 const PERSONNEL_SECTIONS = [
   { label: 'Command',    color: '#9CA3AF', positions: new Set(['incident_commander','deputy_incident_commander','safety_officer','public_information_officer','liaison_officer']) },
   { label: 'Operations', color: '#EF4444', positions: new Set(OPERATIONS_POSITIONS.map((p: any) => p.value)) },
@@ -417,7 +417,7 @@ export default function EventDetailPage() {
     </div>
   )
 
-  // ── Derived state ──────────────────────────────────────────
+  // -- Derived state ------------------------------------------
   const activeOp = ops.find(o => o.status === 'active') ?? null
   const activeOpAssignments = assignments.filter(a => a.operational_period_id === activeOp?.id)
   const myAssignment = currentUserId
@@ -451,7 +451,7 @@ export default function EventDetailPage() {
   return (
     <div className="min-h-screen bg-[#0B0F14] flex flex-col">
 
-      {/* ── STICKY HEADER + COMMAND BAR ───────────────────────── */}
+      {/* -- STICKY HEADER + COMMAND BAR ------------------------- */}
       <header className="sticky top-12 z-20 bg-[#0B0F14]/95 backdrop-blur-sm border-b border-[#232B36]/70">
         {/* Row 1: nav + event name */}
         <div className="px-4 pt-2.5 pb-1.5 max-w-2xl mx-auto flex items-center gap-4">
@@ -510,7 +510,7 @@ export default function EventDetailPage() {
         </div>
       </header>
 
-      {/* ── INVITE TOAST ─────────────────────────────────────────── */}
+      {/* -- INVITE TOAST ------------------------------------------- */}
       {inviteToast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 w-full max-w-sm px-4">
           <div className="bg-[#161D26] border border-[#FF5A1F]/30 rounded-2xl px-4 py-3 shadow-2xl flex items-start gap-3">
@@ -539,7 +539,7 @@ export default function EventDetailPage() {
         </div>
       )}
 
-      {/* ── CONFIRMATION MODAL ────────────────────────────────── */}
+      {/* -- CONFIRMATION MODAL ---------------------------------- */}
       {confirming && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
           <div className="bg-[#161D26] border border-[#232B36] rounded-2xl p-6 max-w-sm w-full">
@@ -579,10 +579,10 @@ export default function EventDetailPage() {
         </div>
       )}
 
-      {/* ── MAIN CONTENT ──────────────────────────────────────── */}
+      {/* -- MAIN CONTENT ---------------------------------------- */}
       <main className="flex-1 px-4 pt-4 sm:pt-6 pb-24 sm:pb-12 max-w-2xl mx-auto w-full">
 
-        {/* 1 · ACTIVE OP STRIP ──────────────────────────────── */}
+        {/* 1 · ACTIVE OP STRIP -------------------------------- */}
         {activeOp ? (
           <div className="mb-6 bg-[#FF5A1F]/5 border border-[#FF5A1F]/15 rounded-2xl px-4 py-3.5 flex items-center justify-between gap-4">
             <div>
@@ -604,7 +604,7 @@ export default function EventDetailPage() {
           </div>
         ) : null}
 
-        {/* 2 · PRIORITY STRIP ──────────────────────────────── */}
+        {/* 2 · PRIORITY STRIP -------------------------------- */}
         <div className={`mb-6 border rounded-2xl overflow-hidden transition-all ${
           topAlert?.severity === 'critical' ? 'border-[#EF4444]/40 bg-[#EF4444]/5' :
           topAlert?.severity === 'warning'  ? 'border-[#F59E0B]/35 bg-[#F59E0B]/5' :
@@ -721,7 +721,7 @@ export default function EventDetailPage() {
           )}
         </div>
 
-        {/* 3 · MY ASSIGNMENT — primary action card ─────────── */}
+        {/* 3 · MY ASSIGNMENT — primary action card ----------- */}
         {myAssignment ? (
           <section className="mb-6">
             <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide mb-3">My Assignment</p>
@@ -803,7 +803,7 @@ export default function EventDetailPage() {
           </div>
         ) : null}
 
-        {/* 3b · PERSONNEL — collapsible sections ──────────── */}
+        {/* 3b · PERSONNEL — collapsible sections ------------ */}
         {activeOp && activeOpAssignments.length > 0 && (() => {
           // Short role tags for display — keyed by ics_position value
           const ROLE_TAG: Record<string, { tag: string; color: string }> = {
@@ -1117,7 +1117,7 @@ export default function EventDetailPage() {
           </section>
         )}
 
-        {/* 4 · PRIMARY CTA ──────────────────────────────────── */}
+        {/* 4 · PRIMARY CTA ------------------------------------ */}
         {myAssignment && activeOp && (
           <div className="mb-8">
             <Link
@@ -1133,7 +1133,7 @@ export default function EventDetailPage() {
           </div>
         )}
 
-        {/* 4b · ICS 214 QUICK ACCESS (admin/supervisor, not assigned) ── */}
+        {/* 4b · ICS 214 QUICK ACCESS (admin/supervisor, not assigned) -- */}
         {canManage && !myAssignment && activeOp && (
           <div className="mb-8">
             <Link
@@ -1157,7 +1157,7 @@ export default function EventDetailPage() {
           </div>
         )}
 
-        {/* 4c · MEETINGS ───────────────────────────────────── */}
+        {/* 4c · MEETINGS ------------------------------------- */}
         {(meetings.length > 0 || isAdmin) && (
           <div className="mb-8">
             <div className="flex items-center justify-between mb-3">
@@ -1225,7 +1225,7 @@ export default function EventDetailPage() {
           </div>
         )}
 
-        {/* 5 · RECENT ACTIVITY — live feed ─────────────────── */}
+        {/* 5 · RECENT ACTIVITY — live feed ------------------- */}
         {recentEntries.length > 0 && activeOp && (
           <section className="mb-8">
             <div className="flex items-center justify-between mb-3">
@@ -1265,10 +1265,10 @@ export default function EventDetailPage() {
           </section>
         )}
 
-        {/* ── DIVIDER ──────────────────────────────────────────── */}
+        {/* -- DIVIDER -------------------------------------------- */}
         {canManage && <div className="border-t border-[#232B36]/60 mb-8" />}
 
-        {/* 5 · MANAGEMENT SECTION (admin / supervisor) ──────── */}
+        {/* 5 · MANAGEMENT SECTION (admin / supervisor) -------- */}
         {canManage && (
           <section>
             <div className="flex items-center gap-2 mb-4 flex-wrap">
@@ -1544,7 +1544,7 @@ export default function EventDetailPage() {
           </section>
         )}
 
-        {/* 5b · NON-MANAGER: read-only periods list ─────────── */}
+        {/* 5b · NON-MANAGER: read-only periods list ----------- */}
         {!canManage && ops.length > 0 && (
           <section>
             <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide mb-3">All Periods</p>
@@ -1586,7 +1586,7 @@ export default function EventDetailPage() {
           </section>
         )}
 
-        {/* 7 · ALERT MANAGEMENT (admin only) ───────────────── */}
+        {/* 7 · ALERT MANAGEMENT (admin only) ----------------- */}
         {isAdmin && (
           <section className="mt-2">
             {deleteError && (
@@ -1730,7 +1730,7 @@ export default function EventDetailPage() {
 
       </main>
 
-      {/* ── FLOATING ACTION BAR (mobile-first, minimal on desktop) ── */}
+      {/* -- FLOATING ACTION BAR (mobile-first, minimal on desktop) -- */}
       {activeOp && (
         <div className="fixed bottom-0 left-0 right-0 z-30 bg-[#0B0F14]/95 backdrop-blur-sm border-t border-[#232B36] px-4 py-3 sm:hidden">
           <div className="flex items-center gap-2 max-w-sm mx-auto">
@@ -1789,7 +1789,7 @@ export default function EventDetailPage() {
         </div>
       )}
 
-      {/* ── PERSON DETAIL OVERLAY ────────────────────────────── */}
+      {/* -- PERSON DETAIL OVERLAY ------------------------------ */}
       {selectedPerson && (() => {
         const { assignment: a, prof: p } = selectedPerson
         const status = activityStatus(a.user_id, lastEntryMap)

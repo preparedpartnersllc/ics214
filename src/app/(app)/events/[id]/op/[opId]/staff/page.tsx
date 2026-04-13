@@ -170,7 +170,7 @@ export default function StaffPage() {
     setLoading(false)
   }
 
-  // ── Derived ──────────────────────────────────────────────────────
+  // -- Derived ------------------------------------------------------
   const assignedUserIds = useMemo(
     () => new Set(assignments.map((a: any) => a.user_id)),
     [assignments]
@@ -276,13 +276,13 @@ export default function StaffPage() {
     }
   }, [caSection])
 
-  // ── Toast ────────────────────────────────────────────────────────
+  // -- Toast --------------------------------------------------------
   function showToast(msg: string, ok: boolean) {
     setToast({ msg, ok })
     setTimeout(() => setToast(null), 3000)
   }
 
-  // ── System team helper ───────────────────────────────────────────
+  // -- System team helper -------------------------------------------
   async function ensureSysTeam(name: string, groupId: string | null, divisionId: string | null): Promise<string | null> {
     if (sysTeamIdMap[name]) return sysTeamIdMap[name]
     const supabase = createClient()
@@ -293,7 +293,7 @@ export default function StaffPage() {
     return null
   }
 
-  // ── Structure creation ───────────────────────────────────────────
+  // -- Structure creation -------------------------------------------
   async function createGroup(name: string) {
     if (!name.trim()) return
     const supabase = createClient()
@@ -359,7 +359,7 @@ export default function StaffPage() {
     showToast('Group moved', true)
   }
 
-  // ── Demob approval action ────────────────────────────────────────
+  // -- Demob approval action ----------------------------------------
   async function approveDemob(approvalId: string, requestId: string) {
     const supabase = createClient()
     const now = new Date().toISOString()
@@ -392,7 +392,7 @@ export default function StaffPage() {
     setDemobRequests(refreshed ?? [])
   }
 
-  // ── Assignment write / reassign / remove ─────────────────────────
+  // -- Assignment write / reassign / remove -------------------------
   async function createAssignment(profileId: string, teamId: string, position: string): Promise<boolean> {
     const p = profileMap[profileId]
     if (!p) return false
@@ -595,7 +595,7 @@ export default function StaffPage() {
     showToast('Demob request cancelled', true)
   }
 
-  // ── DnD helpers ──────────────────────────────────────────────────
+  // -- DnD helpers --------------------------------------------------
   // Creates an invisible DOM-attached element as the drag image.
   // setDragImage REQUIRES the element to be in the DOM — passing an off-DOM
   // element (e.g. a detached canvas) causes browsers to silently cancel the
@@ -697,7 +697,7 @@ export default function StaffPage() {
     if (aid) await removeAssignment(aid)
   }
 
-  // ── Click-to-assign ───────────────────────────────────────────────
+  // -- Click-to-assign -----------------------------------------------
   function openAssign(p: any) {
     setAssigningProfile(p)
     setMovingAssignmentId(null)
@@ -730,7 +730,7 @@ export default function StaffPage() {
     else setCaError('Assignment failed — see notification')
   }
 
-  // ── InlineAdd ────────────────────────────────────────────────────
+  // -- InlineAdd ----------------------------------------------------
   function InlineAdd({ placeholder, value, onChange, onSubmit, onCancel, label }: {
     placeholder: string; value: string; onChange: (v: string) => void
     onSubmit: () => void; onCancel: () => void; label: string
@@ -758,7 +758,7 @@ export default function StaffPage() {
     )
   }
 
-  // ── Sub-components ───────────────────────────────────────────────
+  // -- Sub-components -----------------------------------------------
 
   function EmptySlot({ label, dropKey, onDrop, onClickAssign }: {
     label: string; dropKey: string; onDrop: (e: React.DragEvent) => void; onClickAssign: () => void
@@ -818,7 +818,7 @@ export default function StaffPage() {
       : null
 
     if (isPendingDemob) {
-      // ── Pending Vacancy slot ──────────────────────────────────────
+      // -- Pending Vacancy slot --------------------------------------
       return (
         <div className="rounded-lg border border-[#F59E0B]/40 bg-[#F59E0B]/5 overflow-hidden select-none">
           {/* Header strip */}
@@ -870,7 +870,7 @@ export default function StaffPage() {
       )
     }
 
-    // ── Preassigned slot (assigned, not yet checked in) ──────────────
+    // -- Preassigned slot (assigned, not yet checked in) --------------
     if (isPreassigned) {
       return (
         <div
@@ -924,7 +924,7 @@ export default function StaffPage() {
       )
     }
 
-    // ── Normal assigned slot (checked in + assigned) ──────────────
+    // -- Normal assigned slot (checked in + assigned) --------------
     return (
       <div
         draggable={isAdmin}
@@ -1192,7 +1192,7 @@ export default function StaffPage() {
     )
   }
 
-  // ── Loading ───────────────────────────────────────────────────────
+  // -- Loading -------------------------------------------------------
   if (loading) return (
     <div className="min-h-screen bg-[#0B0F14] flex items-center justify-center">
       <p className="text-[#6B7280] text-sm">Loading…</p>
@@ -1204,7 +1204,7 @@ export default function StaffPage() {
   const hasOpsStructure = branches.length > 0 || divs.length > 0 || unassignedGroups.length > 0
   const hasDivUnits     = branches.length > 0 || divs.length > 0
 
-  // ── Staging panel ─────────────────────────────────────────────────
+  // -- Staging panel -------------------------------------------------
   const stagingDropKey = 'staging-pool'
   const stagingIsOver  = dragOverKey === stagingDropKey
 
@@ -1251,7 +1251,7 @@ export default function StaffPage() {
           </div>
         )}
 
-        {/* ── Checked-in staging: draggable & assignable ── */}
+        {/* -- Checked-in staging: draggable & assignable -- */}
         {checkedInStaged.length === 0 && !stagingIsOver && (
           <p className="text-[10px] text-[#374151] text-center py-4 font-mono">
             {stagingQuery ? 'No match' : 'No checked-in personnel'}
@@ -1303,7 +1303,7 @@ export default function StaffPage() {
           )
         })}
 
-        {/* ── Not checked in: draggable for preassignment, check-in button ── */}
+        {/* -- Not checked in: draggable for preassignment, check-in button -- */}
         {notCheckedIn.length > 0 && (
           <div className="mt-3 pt-2 border-t border-[#1f2937]">
             <p className="text-[10px] font-mono text-[#374151] uppercase tracking-wider px-1 mb-1.5">

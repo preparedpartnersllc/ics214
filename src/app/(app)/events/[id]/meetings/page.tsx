@@ -9,7 +9,7 @@ import { formatICSDateTime } from '@/lib/utils'
 import { getPositionLabel } from '@/lib/ics-positions'
 import type { EventMeeting, MeetingRsvpStatus } from '@/types'
 
-// ── Meeting status helpers ────────────────────────────────────
+// -- Meeting status helpers ------------------------------------
 
 type MeetingStatus = 'upcoming' | 'starting_soon' | 'in_progress' | 'completed' | 'cancelled'
 
@@ -56,7 +56,7 @@ const RSVP_STYLE: Record<MeetingRsvpStatus, { label: string; active: string }> =
   declined: { label: 'Decline', active: 'bg-[#EF4444]/15 text-[#EF4444] border-[#EF4444]/30' },
 }
 
-// ── Date helpers ──────────────────────────────────────────────
+// -- Date helpers ----------------------------------------------
 
 function toDatetimeLocal(iso: string) {
   const d   = new Date(iso)
@@ -70,7 +70,7 @@ function nowPlusMins(mins: number) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-// ── Page ─────────────────────────────────────────────────────
+// -- Page -----------------------------------------------------
 
 export default function MeetingsPage() {
   const params = useParams()
@@ -210,7 +210,7 @@ export default function MeetingsPage() {
     setLoading(false)
   }
 
-  // ── RSVP submit ──────────────────────────────────────────────
+  // -- RSVP submit ----------------------------------------------
 
   async function submitRSVP(meetingId: string, status: MeetingRsvpStatus) {
     if (!currentUserId) return
@@ -224,7 +224,7 @@ export default function MeetingsPage() {
     setMyRsvps(prev => ({ ...prev, [meetingId]: status }))
   }
 
-  // ── Create meeting ───────────────────────────────────────────
+  // -- Create meeting -------------------------------------------
 
   async function createMeeting(ev: React.FormEvent) {
     ev.preventDefault()
@@ -317,7 +317,7 @@ export default function MeetingsPage() {
   return (
     <div className="min-h-screen bg-[#0B0F14] flex flex-col">
 
-      {/* ── HEADER ─────────────────────────────────────────── */}
+      {/* -- HEADER ------------------------------------------- */}
       <header className="sticky top-12 z-20 bg-[#0B0F14]/95 backdrop-blur-sm border-b border-[#232B36]/70">
         <div className="px-4 py-2.5 max-w-2xl mx-auto flex items-center justify-between gap-4">
           <Link
@@ -333,7 +333,7 @@ export default function MeetingsPage() {
         </div>
       </header>
 
-      {/* ── BODY ───────────────────────────────────────────── */}
+      {/* -- BODY --------------------------------------------- */}
       <main className="flex-1 px-4 pt-6 pb-24 max-w-2xl mx-auto w-full">
 
         {/* Admin toolbar */}
@@ -354,7 +354,7 @@ export default function MeetingsPage() {
           </div>
         )}
 
-        {/* ── CREATE FORM ─────────────────────────────────── */}
+        {/* -- CREATE FORM ----------------------------------- */}
         {isAdmin && showForm && (
           <div className="mb-8 bg-[#161D26] border border-[#FF5A1F]/20 rounded-2xl p-5">
             <div className="flex items-center justify-between mb-4">
@@ -404,7 +404,7 @@ export default function MeetingsPage() {
           </div>
         )}
 
-        {/* ── ACTIVE / UPCOMING ──────────────────────────── */}
+        {/* -- ACTIVE / UPCOMING ---------------------------- */}
         {active.length > 0 && (
           <section className="mb-8">
             <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide mb-3">Upcoming</p>
@@ -428,7 +428,7 @@ export default function MeetingsPage() {
           </section>
         )}
 
-        {/* ── PAST ───────────────────────────────────────── */}
+        {/* -- PAST ----------------------------------------- */}
         {past.length > 0 && (
           <section className="mb-8">
             <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide mb-3">Past</p>
@@ -451,7 +451,7 @@ export default function MeetingsPage() {
           </section>
         )}
 
-        {/* ── CANCELLED (admin only) ──────────────────────── */}
+        {/* -- CANCELLED (admin only) ------------------------ */}
         {isAdmin && cancelled.length > 0 && (
           <section className="mb-8">
             <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide mb-3">Cancelled</p>
@@ -466,7 +466,7 @@ export default function MeetingsPage() {
           </section>
         )}
 
-        {/* ── EMPTY STATE ─────────────────────────────────── */}
+        {/* -- EMPTY STATE ----------------------------------- */}
         {meetings.length === 0 && !showForm && (
           <div className="border border-[#232B36] border-dashed rounded-2xl p-10 text-center">
             <p className="text-[#6B7280] text-sm">No meetings scheduled.</p>
@@ -482,7 +482,7 @@ export default function MeetingsPage() {
   )
 }
 
-// ── Meeting card ─────────────────────────────────────────────
+// -- Meeting card ---------------------------------------------
 
 function MeetingCard({
   meeting, inviteeIds, participants, isAdmin, eventId,
@@ -581,7 +581,7 @@ function MeetingCard({
     onSave?.(updated as EventMeeting, eInvitees)
   }
 
-  // ── Edit view ──────────────────────────────────────────────
+  // -- Edit view ----------------------------------------------
   if (editing) {
     return (
       <div className="bg-[#161D26] border border-[#FF5A1F]/25 rounded-2xl p-5">
@@ -630,7 +630,7 @@ function MeetingCard({
     )
   }
 
-  // ── Normal view ────────────────────────────────────────────
+  // -- Normal view --------------------------------------------
   return (
     <div className={`bg-[#161D26] border ${cfg.border} rounded-2xl overflow-hidden ${dimmed ? 'opacity-60' : ''}`}>
       <div className="px-4 py-3.5">
@@ -749,7 +749,7 @@ function MeetingCard({
   )
 }
 
-// ── Invitee selector ─────────────────────────────────────────
+// -- Invitee selector -----------------------------------------
 
 function InviteeSelector({
   participants, selected, onChange,

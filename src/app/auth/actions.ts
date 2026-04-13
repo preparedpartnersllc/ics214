@@ -76,7 +76,7 @@ export async function register(formData: {
     return { error: error.message, code: 'unknown' as const }
   }
 
-  // ── Silent duplicate detection ────────────────────────────────────────────
+  // -- Silent duplicate detection --------------------------------------------
   // When email confirmation is enabled Supabase returns a fake success with
   // identities: [] instead of an error (prevents email enumeration). Detect
   // this and show the real recovery UI.
@@ -93,7 +93,7 @@ export async function register(formData: {
     return { error: 'Registration failed. Please try again.', code: 'unknown' as const }
   }
 
-  // ── Complete profile setup ─────────────────────────────────────────────────
+  // -- Complete profile setup -------------------------------------------------
   // handle_new_user trigger created the profile row on auth.users INSERT.
   // Now fill in the optional fields the trigger doesn't know about.
   const { error: profileErr } = await supabase.from('profiles').update({

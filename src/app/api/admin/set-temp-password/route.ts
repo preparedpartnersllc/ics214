@@ -22,7 +22,7 @@ import { isAdminRole } from '@/lib/roles'
 //   4. Update profiles.must_reset_password = true  (authoritative DB flag,
 //      checked by login action as fallback when JWT is stale)
 export async function POST(request: Request) {
-  // ── Verify caller is an authenticated admin ──────────────────────────────
+  // -- Verify caller is an authenticated admin ------------------------------
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return new NextResponse('Unauthorized', { status: 401 })
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     return new NextResponse('Forbidden', { status: 403 })
   }
 
-  // ── Parse and validate body ──────────────────────────────────────────────
+  // -- Parse and validate body ----------------------------------------------
   const body = await request.json()
   const { userId, password } = body as { userId?: string; password?: string }
   if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
@@ -45,13 +45,13 @@ export async function POST(request: Request) {
     )
   }
 
-  // ── Service-role client ──────────────────────────────────────────────────
+  // -- Service-role client --------------------------------------------------
   const admin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // ── Step 1: fetch profile (validates person exists; need email) ──────────
+  // -- Step 1: fetch profile (validates person exists; need email) ----------
   const { data: targetProfile, error: profileFetchErr } = await admin
     .from('profiles')
     .select('email, full_name')
@@ -73,13 +73,13 @@ export async function POST(request: Request) {
     )
   }
 
-  // ── Step 2: explicitly probe auth user existence ─────────────────────────
+  // -- Step 2: explicitly probe auth user existence -------------------------
   // getUserById returns { data: { user: User | null }, error } with no error
   // when the user simply doesn't exist — data.user is just null.
   const { data: authLookup } = await admin.auth.admin.getUserById(userId)
   const authUserExists = authLookup?.user != null
 
-  // ── Step 3a: auth user exists — single combined update ───────────────────
+  // -- Step 3a: auth user exists — single combined update -------------------
   // Combine password + user_metadata into ONE updateUserById call so there is
   // no second round-trip that could fail after the first succeeds.
   if (authUserExists) {
@@ -97,7 +97,7 @@ export async function POST(request: Request) {
       )
     }
   } else {
-    // ── Step 3b: auth user missing — create with same UUID ──────────────────
+    // -- Step 3b: auth user missing — create with same UUID ------------------
     if (!password) {
       return NextResponse.json(
         {
@@ -171,7 +171,7 @@ export async function POST(request: Request) {
     }
   }
 
-  // ── Step 4: set flag in profiles table ───────────────────────────────────
+  // -- Step 4: set flag in profiles table -----------------------------------
   // This is the authoritative flag checked by the login action.
   // The auth metadata above is checked by middleware (faster, no DB hit).
   const { error: profileErr } = await admin

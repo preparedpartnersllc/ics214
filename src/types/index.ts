@@ -147,7 +147,7 @@ export interface EventBoundary {
   created_at: string
 }
 
-// ── Meeting system ────────────────────────────────────────────
+// -- Meeting system --------------------------------------------
 
 export interface EventMeeting {
   id: string

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { isPrivilegedRole } from '@/lib/roles'
 
-// ── Types ──────────────────────────────────────────────────────────────────
+// -- Types ------------------------------------------------------------------
 
 interface NotifRow {
   id: string
@@ -40,7 +40,7 @@ interface DisplayItem {
   is_read?: boolean
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+// -- Helpers ----------------------------------------------------------------
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleString('en-US', {
@@ -81,7 +81,7 @@ function KindIcon({ kind, severity, unread }: { kind: DisplayItem['kind']; sever
   )
 }
 
-// ── Component ──────────────────────────────────────────────────────────────
+// -- Component --------------------------------------------------------------
 
 export function NotificationBell({ userId }: { userId: string }) {
   const [items,   setItems]   = useState<DisplayItem[]>([])

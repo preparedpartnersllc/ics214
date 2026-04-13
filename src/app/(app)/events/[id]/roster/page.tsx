@@ -13,7 +13,7 @@ import Link from 'next/link'
 import { activityStatus, fmtAgo, STATUS_DOT_COLOR, STATUS_LABEL, fetchLastEntryMap, type LastEntryMap } from '@/lib/accountability'
 import { SECTION_COLORS, badgeColorForPosition } from '@/lib/section-colors'
 
-// ── Section helpers ──────────────────────────────────────────────
+// -- Section helpers ----------------------------------------------
 const CMD_POS = new Set([
   'incident_commander','deputy_incident_commander','safety_officer',
   'public_information_officer','liaison_officer',
@@ -34,7 +34,7 @@ function getSection(pos: string): string {
   return 'Other'
 }
 
-// ── Role tags ───────────────────────────────────────────────────
+// -- Role tags ---------------------------------------------------
 const ROLE_TAG: Record<string, { tag: string; color: string }> = {
   incident_commander:          { tag: 'IC',        color: '#FF5A1F' },
   deputy_incident_commander:   { tag: 'Dep IC',    color: '#FF5A1F' },
@@ -88,13 +88,13 @@ export default function RosterPage() {
   const [loading, setLoading] = useState(true)
   const [opLoading, setOpLoading] = useState(false)
 
-  // ── Controls ─────────────────────────────────────────────────
+  // -- Controls -------------------------------------------------
   const [query, setQuery] = useState('')
   const [sectionFilter, setSectionFilter] = useState<FilterSection>('All')
   const [unitFilter, setUnitFilter] = useState('')
   const [sortBy, setSortBy] = useState<'rank' | 'alpha'>('rank')
 
-  // ── Reassign modal ────────────────────────────────────────────
+  // -- Reassign modal --------------------------------------------
   const [reassigning, setReassigning] = useState<any | null>(null)
   const [reassignSection, setReassignSection] = useState('operations')
   const [reassignTeamId, setReassignTeamId] = useState('')
@@ -151,7 +151,7 @@ export default function RosterPage() {
     setOpLoading(false)
   }
 
-  // ── Structure helpers ─────────────────────────────────────────
+  // -- Structure helpers -----------------------------------------
   const sysTeamIdMap = useMemo(() => {
     const m: Record<string, string> = {}
     teams.forEach(t => { if (t.name.startsWith('__')) m[t.name] = t.id })
@@ -204,7 +204,7 @@ export default function RosterPage() {
     return label
   }
 
-  // ── Unit filter options ───────────────────────────────────────
+  // -- Unit filter options ---------------------------------------
   const unitOptions = useMemo(() => {
     const opts: { value: string; label: string }[] = [{ value: '', label: 'All Units' }]
     const seen = new Set<string>()
@@ -219,7 +219,7 @@ export default function RosterPage() {
     return opts.sort((a, b) => a.label.localeCompare(b.label))
   }, [assignments, teamById, groupById, divById])
 
-  // ── Reassign helpers ──────────────────────────────────────────
+  // -- Reassign helpers ------------------------------------------
   const reassignPositions = useMemo(() => {
     switch (reassignSection) {
       case 'command':    return COMMAND_STAFF_POSITIONS
@@ -307,7 +307,7 @@ export default function RosterPage() {
     setReassignSaving(false)
   }
 
-  // ── Filtered + sorted list ─────────────────────────────────────
+  // -- Filtered + sorted list -------------------------------------
   const filtered = useMemo(() => {
     let list = assignments.filter(a => {
       const p = profileMap[a.user_id]
@@ -333,7 +333,7 @@ export default function RosterPage() {
     return list
   }, [assignments, query, sectionFilter, unitFilter, sortBy, profileMap])
 
-  // ── Grouped view (when no filters active) ─────────────────────
+  // -- Grouped view (when no filters active) ---------------------
   const isFiltered = query !== '' || sectionFilter !== 'All' || unitFilter !== ''
 
   // Groups for unfiltered view: Command, then Ops structure, then Sections
@@ -481,7 +481,7 @@ export default function RosterPage() {
     </div>
   )
 
-  // ── Person row ─────────────────────────────────────────────────
+  // -- Person row -------------------------------------------------
   function PersonRow({ a, showUnit = false }: { a: any; showUnit?: boolean }) {
     const p = profileMap[a.user_id]
     const name = p?.full_name ?? 'Unknown'
@@ -573,7 +573,7 @@ export default function RosterPage() {
     )
   }
 
-  // ── Section header ─────────────────────────────────────────────
+  // -- Section header ---------------------------------------------
   function SectionHeader({ label, color, count }: { label: string; color: string; count: number }) {
     return (
       <div className="flex items-center justify-between px-4 py-2 bg-[#121821] border-b border-[#232B36]/60">
@@ -586,7 +586,7 @@ export default function RosterPage() {
     )
   }
 
-  // ── Depth indent config ────────────────────────────────────────
+  // -- Depth indent config ----------------------------------------
   const DEPTH_COLORS: Record<string, string> = {
     branch: 'text-[#F97316]',
     division: 'text-[#38BDF8]',
@@ -596,7 +596,7 @@ export default function RosterPage() {
 
   return (
     <div className="min-h-screen bg-[#0B0F14]">
-      {/* ── Header ── */}
+      {/* -- Header -- */}
       <header className="sticky top-12 z-20 bg-[#0B0F14]/95 backdrop-blur-sm border-b border-[#232B36]/70">
         <div className="px-4 py-3 max-w-2xl mx-auto flex items-center gap-4">
           <Link href={`/events/${eventId}`}
@@ -629,7 +629,7 @@ export default function RosterPage() {
 
       <main className="px-4 py-6 max-w-2xl mx-auto pb-24">
 
-        {/* ── Stats bar ── */}
+        {/* -- Stats bar -- */}
         {!opLoading && selectedOp && (() => {
           const SECTION_DEFS = [
             { label: 'CMD', section: 'Command'    as FilterSection, set: CMD_POS, color: SECTION_COLORS.command    },
@@ -682,7 +682,7 @@ export default function RosterPage() {
           )
         })()}
 
-        {/* ── Search bar ── */}
+        {/* -- Search bar -- */}
         <div className="relative mb-4">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#4B5563]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
@@ -704,7 +704,7 @@ export default function RosterPage() {
           )}
         </div>
 
-        {/* ── Filter row ── */}
+        {/* -- Filter row -- */}
         <div className="flex items-center gap-2 mb-4 flex-wrap">
           {/* Section pills */}
           {(['All','Command','Operations','Planning','Logistics','Finance','Agency'] as FilterSection[]).map(s => (
@@ -739,7 +739,7 @@ export default function RosterPage() {
           </button>
         </div>
 
-        {/* ── Clear filters ── */}
+        {/* -- Clear filters -- */}
         {isFiltered && (
           <button
             onClick={() => { setQuery(''); setSectionFilter('All'); setUnitFilter('') }}
@@ -757,7 +757,7 @@ export default function RosterPage() {
             <p className="text-[#6B7280] text-sm">No one assigned to this operational period.</p>
           </div>
         ) : isFiltered ? (
-          /* ── Flat filtered list ── */
+          /* -- Flat filtered list -- */
           <div className="bg-[#161D26] border border-[#232B36] rounded-2xl overflow-hidden">
             {filtered.length === 0 ? (
               <p className="text-center text-[#6B7280] text-sm py-8">No results.</p>
@@ -770,7 +770,7 @@ export default function RosterPage() {
             )}
           </div>
         ) : (
-          /* ── Grouped view ── */
+          /* -- Grouped view -- */
           <div className="space-y-4">
             {grouped?.map(group => (
               <div key={group.key} className="bg-[#161D26] border border-[#232B36] rounded-2xl overflow-hidden">
@@ -812,7 +812,7 @@ export default function RosterPage() {
         )}
       </main>
 
-      {/* ── Quick Reassign Modal ── */}
+      {/* -- Quick Reassign Modal -- */}
       {reassigning && (
         <div
           className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"

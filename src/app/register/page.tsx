@@ -93,7 +93,7 @@ export default function RegisterPage() {
           />
         </FormField>
 
-        {/* ── Error + recovery UI ── */}
+        {/* -- Error + recovery UI -- */}
 
         {serverError && errorCode === 'email_exists' && (
           <div className="rounded-xl border border-[#F59E0B]/30 bg-[#F59E0B]/5 p-4 space-y-3">

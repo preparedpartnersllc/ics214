@@ -13,7 +13,7 @@ import {
 import { derivePersonnelStatus, type PersonnelStatus } from '@/lib/personnel-lifecycle'
 import Link from 'next/link'
 
-// ── Section classification ────────────────────────────────────────
+// -- Section classification ----------------------------------------
 const CMD_POS = new Set([
   'incident_commander','deputy_incident_commander','safety_officer',
   'public_information_officer','liaison_officer','agency_representative',
@@ -40,7 +40,7 @@ const SECTION_CHIEF: Record<string, string> = {
   Finance:    'finance_admin_section_chief',
 }
 
-// ── Tiny reusable components ─────────────────────────────────────
+// -- Tiny reusable components -------------------------------------
 
 function StatCard({ label, value, color, sub }: {
   label: string; value: number | string; color: string; sub?: string
@@ -137,7 +137,7 @@ export default function DashboardPage() {
     setLoading(false)
   }
 
-  // ── Derived ──────────────────────────────────────────────────────
+  // -- Derived ------------------------------------------------------
   const checkinSet = useMemo(
     () => new Set(checkins.map((c: any) => c.user_id)),
     [checkins]
@@ -253,7 +253,7 @@ export default function DashboardPage() {
     return out
   }, [demobRequests, currentUserId])
 
-  // ── Loading ───────────────────────────────────────────────────────
+  // -- Loading -------------------------------------------------------
   if (loading) return (
     <div className="min-h-screen bg-[#0B0F14] flex items-center justify-center">
       <p className="text-[#6B7280] text-sm font-mono">Loading…</p>
@@ -265,7 +265,7 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-[#0B0F14]">
 
-      {/* ── HEADER ───────────────────────────────────────────────── */}
+      {/* -- HEADER ------------------------------------------------- */}
       <header className="sticky top-12 z-20 bg-[#0B0F14]/95 backdrop-blur-sm border-b border-[#232B36]/70">
         <div className="px-4 h-11 flex items-center gap-3 max-w-4xl mx-auto">
           <Link href={`/events/${eventId}`}
@@ -296,7 +296,7 @@ export default function DashboardPage() {
 
       <main className="px-4 py-5 max-w-4xl mx-auto pb-24 space-y-6">
 
-        {/* ── ACTIVE ALERTS STRIP ──────────────────────────────── */}
+        {/* -- ACTIVE ALERTS STRIP -------------------------------- */}
         {alerts.length > 0 && (
           <div className="flex items-center gap-2 bg-[#EF4444]/8 border border-[#EF4444]/25 rounded-xl px-4 py-2.5">
             <div className="w-1.5 h-1.5 rounded-full bg-[#EF4444] flex-shrink-0 animate-pulse" />
@@ -309,7 +309,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── PART 2: SUMMARY CARDS ────────────────────────────── */}
+        {/* -- PART 2: SUMMARY CARDS ------------------------------ */}
         <div>
           <SectionHeader label="Personnel status" />
           <div className="grid grid-cols-3 sm:grid-cols-7 gap-2">
@@ -328,7 +328,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ── PART 3: STAFFING SNAPSHOT ────────────────────────── */}
+        {/* -- PART 3: STAFFING SNAPSHOT -------------------------- */}
         <div>
           <Divider />
           <SectionHeader label="Section staffing" />
@@ -372,7 +372,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ── PART 4 + PART 6: DEMOB WATCH + VACANCY WATCH ─────── */}
+        {/* -- PART 4 + PART 6: DEMOB WATCH + VACANCY WATCH ------- */}
         {(pendingRequests.length > 0 || imminentVacancies.length > 0) && (
           <div>
             <Divider />
@@ -479,7 +479,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── PART 5: ACCOUNTABILITY WATCH ─────────────────────── */}
+        {/* -- PART 5: ACCOUNTABILITY WATCH ----------------------- */}
         <div>
           <Divider />
           <div className="flex items-baseline justify-between mb-2">
@@ -539,7 +539,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ── NOT CHECKED IN LIST ───────────────────────────────── */}
+        {/* -- NOT CHECKED IN LIST --------------------------------- */}
         {counts.notIn > 0 && (
           <div>
             <Divider />
@@ -565,7 +565,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── PART 7: QUICK ACTIONS ────────────────────────────── */}
+        {/* -- PART 7: QUICK ACTIONS ------------------------------ */}
         <div>
           <Divider />
           <SectionHeader label="Quick actions" />
@@ -588,7 +588,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ── UPCOMING MEETINGS STRIP ──────────────────────────── */}
+        {/* -- UPCOMING MEETINGS STRIP ---------------------------- */}
         {meetings.length > 0 && (
           <div>
             <Divider />
