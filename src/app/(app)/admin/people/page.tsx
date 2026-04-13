@@ -46,18 +46,70 @@ export default function PeoplePage() {
 
   const [orphans, setOrphans] = useState<{ id: string; email: string; created_at: string }[]>([])
 
+  // Edit profile modal (super admin only)
+  const [editTarget,    setEditTarget]    = useState<any | null>(null)
+  const [editFullName,  setEditFullName]  = useState('')
+  const [editAgency,    setEditAgency]    = useState('')
+  const [editUnit,      setEditUnit]      = useState('')
+  const [editPhone,     setEditPhone]     = useState('')
+  const [editSaving,    setEditSaving]    = useState(false)
+  const [editError,     setEditError]     = useState<string | null>(null)
+  const [agencies,      setAgencies]      = useState<string[]>([])
+  const [isSuperAdminUser, setIsSuperAdminUser] = useState(false)
+
   useEffect(() => { load() }, [])
 
   async function load() {
     const supabase = createClient()
-    const { data } = await supabase.from('profiles').select('*').order('full_name')
-    setProfiles(data ?? [])
+    const { data: { user } } = await supabase.auth.getUser()
+    const [profilesRes, meRes] = await Promise.all([
+      supabase.from('profiles').select('*').order('full_name'),
+      user ? supabase.from('profiles').select('role').eq('id', user.id).single() : Promise.resolve({ data: null }),
+    ])
+    setProfiles(profilesRes.data ?? [])
+    if (isSuperAdmin((meRes as any).data?.role)) {
+      setIsSuperAdminUser(true)
+      const { data: agencyRows } = await supabase.from('agencies').select('name').eq('is_active', true).order('name')
+      setAgencies((agencyRows ?? []).map((a: any) => a.name))
+    }
     setLoading(false)
     // Also fetch auth users with no profile (incomplete invites)
     fetch('/api/admin/orphaned-users')
       .then(r => r.json())
       .then(d => setOrphans(d.orphans ?? []))
       .catch(() => {})
+  }
+
+  function openEdit(p: any) {
+    setEditTarget(p)
+    setEditFullName(p.full_name ?? '')
+    setEditAgency(p.default_agency ?? '')
+    setEditUnit(p.default_unit ?? '')
+    setEditPhone(p.phone ?? '')
+    setEditError(null)
+  }
+
+  async function saveEdit() {
+    if (!editTarget) return
+    setEditSaving(true)
+    setEditError(null)
+    const supabase = createClient()
+    const { error } = await supabase.from('profiles').update({
+      full_name:      editFullName.trim(),
+      default_agency: editAgency || null,
+      default_unit:   editUnit.trim() || null,
+      phone:          editPhone.trim() || null,
+    }).eq('id', editTarget.id)
+    if (error) {
+      setEditError(error.message)
+    } else {
+      setProfiles(prev => prev.map(p => p.id === editTarget.id
+        ? { ...p, full_name: editFullName.trim(), default_agency: editAgency || null, default_unit: editUnit.trim() || null, phone: editPhone.trim() || null }
+        : p
+      ))
+      setEditTarget(null)
+    }
+    setEditSaving(false)
   }
 
   async function sendInvite(userId: string, email: string) {
@@ -321,6 +373,80 @@ export default function PeoplePage() {
           </div>
         )
       })()}
+
+      {/* -- Edit profile modal (super admin only) -- */}
+      {editTarget && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
+          onClick={() => { if (!editSaving) setEditTarget(null) }}
+        >
+          <div
+            className="bg-[#161D26] border border-[#232B36] rounded-2xl w-full max-w-sm p-5 space-y-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <div>
+              <p className="text-xs text-[#FF5A1F] font-mono uppercase tracking-wider mb-1">Edit Account</p>
+              <p className="text-sm text-[#9CA3AF]">{editTarget.email}</p>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-[#6B7280] uppercase tracking-wide mb-1 block">Full Name</label>
+                <input
+                  className="input w-full"
+                  value={editFullName}
+                  onChange={e => setEditFullName(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-[#6B7280] uppercase tracking-wide mb-1 block">Agency</label>
+                <select className="input w-full" value={editAgency} onChange={e => setEditAgency(e.target.value)}>
+                  <option value="">None</option>
+                  {agencies.map(name => <option key={name} value={name}>{name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-[#6B7280] uppercase tracking-wide mb-1 block">Unit</label>
+                <input
+                  className="input w-full"
+                  placeholder="e.g. Engine 23"
+                  value={editUnit}
+                  onChange={e => setEditUnit(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-[#6B7280] uppercase tracking-wide mb-1 block">Phone</label>
+                <input
+                  className="input w-full"
+                  type="tel"
+                  placeholder="(313) 555-0100"
+                  value={editPhone}
+                  onChange={e => setEditPhone(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {editError && <p className="text-xs text-red-400">{editError}</p>}
+
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={saveEdit}
+                disabled={editSaving}
+                className="flex-1 text-sm px-4 py-2 rounded-xl bg-[#FF5A1F] text-white font-semibold hover:bg-[#FF6A33] disabled:opacity-50 transition-colors"
+              >
+                {editSaving ? 'Saving…' : 'Save changes'}
+              </button>
+              <button
+                onClick={() => setEditTarget(null)}
+                disabled={editSaving}
+                className="px-4 py-2 rounded-xl text-sm text-[#9CA3AF] hover:text-[#E5E7EB] transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* -- Delete confirmation modal -- */}
       {confirmDelete && (() => {
@@ -659,6 +785,16 @@ export default function PeoplePage() {
                     <span className="text-xs text-[#6B7280]/50 ml-auto">
                       Active {new Date(p.last_active_at).toLocaleDateString()}
                     </span>
+                  )}
+
+                  {/* Edit profile — super admin only */}
+                  {isSuperAdminUser && (
+                    <button
+                      onClick={() => openEdit(p)}
+                      className="text-xs px-3 py-1.5 rounded-lg border border-[#FF5A1F]/30 bg-transparent text-[#FF5A1F]/70 hover:text-[#FF5A1F] hover:border-[#FF5A1F]/60 hover:bg-[#FF5A1F]/5 transition-colors"
+                    >
+                      Edit profile
+                    </button>
                   )}
 
                   {/* Delete — far right, destructive. Hidden for super_admin. */}
