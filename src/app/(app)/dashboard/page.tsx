@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { isAdminRole, isPrivilegedRole } from '@/lib/roles'
+import { isAdminRole, isPrivilegedRole, roleLabel } from '@/lib/roles'
 
 export const dynamic = 'force-dynamic'
 
