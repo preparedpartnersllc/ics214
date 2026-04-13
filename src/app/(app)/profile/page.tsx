@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { FormField } from '@/components/ui/FormField'
 import { normalizePhone, formatPhoneDisplay, phoneValidationError } from '@/lib/phone'
+import { isSuperAdmin } from '@/lib/roles'
 
 const TIMEZONES = [
   { label: 'Eastern Time (Detroit)', value: 'America/Detroit' },
@@ -21,11 +22,13 @@ export default function ProfilePage() {
   const [saved,    setSaved]    = useState(false)
   const [error,    setError]    = useState<string | null>(null)
 
-  const [fullName, setFullName] = useState('')
-  const [phone,    setPhone]    = useState('')
-  const [agency,   setAgency]   = useState('')
-  const [unit,     setUnit]     = useState('')
-  const [timezone, setTimezone] = useState('America/Detroit')
+  const [fullName,  setFullName]  = useState('')
+  const [phone,     setPhone]     = useState('')
+  const [agency,    setAgency]    = useState('')
+  const [unit,      setUnit]      = useState('')
+  const [timezone,  setTimezone]  = useState('America/Detroit')
+  const [agencies,  setAgencies]  = useState<string[]>([])
+  const [canEditAgency, setCanEditAgency] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -41,6 +44,12 @@ export default function ProfilePage() {
         setAgency(p.default_agency ?? '')
         setUnit(p.default_unit ?? '')
         setTimezone(p.timezone ?? 'America/Detroit')
+        if (isSuperAdmin(p.role)) {
+          setCanEditAgency(true)
+          const { data: agencyRows } = await supabase
+            .from('agencies').select('name').eq('is_active', true).order('name')
+          setAgencies((agencyRows ?? []).map((a: any) => a.name))
+        }
       }
     }
     load()
@@ -73,6 +82,7 @@ export default function ProfilePage() {
         default_unit:     unit || null,
         timezone,
         last_active_at:   new Date().toISOString(),
+        ...(canEditAgency ? { default_agency: agency || null } : {}),
       })
       .eq('id', user.id)
 
@@ -167,7 +177,14 @@ export default function ProfilePage() {
 
           <div>
             <p className="text-xs font-medium text-[#9CA3AF] mb-1.5 uppercase tracking-wide">Home Agency</p>
-            {agency ? (
+            {canEditAgency ? (
+              <select className="input" value={agency} onChange={e => setAgency(e.target.value)}>
+                <option value="">Select agency…</option>
+                {agencies.map(name => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+            ) : agency ? (
               <div className="input flex items-center justify-between opacity-70 cursor-not-allowed select-none">
                 <span className="text-[#E5E7EB]">{agency}</span>
                 <span className="text-xs text-[#6B7280]">Contact admin to change</span>
