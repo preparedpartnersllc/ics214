@@ -26,6 +26,7 @@ export default function SetPasswordPage() {
 
   // UI state
   const [agencies,     setAgencies]     = useState<string[]>([])
+  const [lockedAgency, setLockedAgency] = useState(false)
   const [saving,       setSaving]       = useState(false)
   const [submitError,  setSubmitError]  = useState<string | null>(null)
 
@@ -36,10 +37,12 @@ export default function SetPasswordPage() {
   // Step 1: exchange token from URL hash
   useEffect(() => {
     const supabase = createClient()
-    const hash   = window.location.hash.slice(1)
-    const params = new URLSearchParams(hash)
-    const accessToken  = params.get('access_token')
-    const refreshToken = params.get('refresh_token')
+    const hash        = window.location.hash.slice(1)
+    const hashParams  = new URLSearchParams(hash)
+    const queryParams = new URLSearchParams(window.location.search)
+    const accessToken  = hashParams.get('access_token')
+    const refreshToken = hashParams.get('refresh_token')
+    const agencyParam  = queryParams.get('agency') ?? ''
 
     if (!accessToken || !refreshToken) {
       setTokenError('Invalid or expired invite link. Please ask an admin to resend your invite.')
@@ -52,14 +55,22 @@ export default function SetPasswordPage() {
           setTokenError('This invite link has expired or already been used. Please ask an admin to resend your invite.')
           return
         }
+        // Clear hash + query from URL so the token isn't visible / reused
         window.history.replaceState(null, '', window.location.pathname)
         setUserId(data.user.id)
         setUserEmail(data.user.email ?? '')
 
-        // Load agencies for the dropdown
-        const { data: agencyRows } = await supabase
-          .from('agencies').select('name').eq('is_active', true).order('name')
-        setAgencies((agencyRows ?? []).map((a: any) => a.name))
+        if (agencyParam) {
+          // Pre-fill and lock agency from the inviting admin
+          setAgency(agencyParam)
+          setAgencies([agencyParam])
+          setLockedAgency(true)
+        } else {
+          // No agency passed — load full list so user can choose
+          const { data: agencyRows } = await supabase
+            .from('agencies').select('name').eq('is_active', true).order('name')
+          setAgencies((agencyRows ?? []).map((a: any) => a.name))
+        }
       })
   }, [])
 
@@ -149,19 +160,27 @@ export default function SetPasswordPage() {
         </FormField>
 
         {/* Agency */}
-        <FormField label="Agency">
-          <select
-            className="input"
-            value={agency}
-            onChange={e => setAgency(e.target.value)}
-            required
-          >
-            <option value="" disabled>Select your agency…</option>
-            {agencies.map(name => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
-        </FormField>
+        <div>
+          <p className="text-xs font-medium text-[#9CA3AF] mb-1.5 uppercase tracking-wide">Agency</p>
+          {lockedAgency ? (
+            <div className="input flex items-center justify-between opacity-80 cursor-not-allowed select-none">
+              <span className="text-[#E5E7EB]">{agency}</span>
+              <span className="text-xs text-[#6B7280]">Set by your admin</span>
+            </div>
+          ) : (
+            <select
+              className="input"
+              value={agency}
+              onChange={e => setAgency(e.target.value)}
+              required
+            >
+              <option value="" disabled>Select your agency…</option>
+              {agencies.map(name => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          )}
+        </div>
 
         {/* Unit */}
         <FormField label="Unit (optional)">

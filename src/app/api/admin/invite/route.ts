@@ -64,6 +64,17 @@ export async function POST(request: Request) {
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://ics214.com'
 
+  // Look up the inviting admin's agency so we can pre-fill it for the new user
+  const { data: adminProfile } = await supabase
+    .from('profiles').select('default_agency').eq('id', user.id).single()
+  const adminAgency = adminProfile?.default_agency ?? ''
+
+  // Build the redirectTo URL with agency as a query param so set-password can lock it
+  const redirectBase = `${siteUrl}/set-password`
+  const redirectTo = adminAgency
+    ? `${redirectBase}?agency=${encodeURIComponent(adminAgency)}`
+    : redirectBase
+
   // --- Step 1: Check for any existing auth user with this email ---
   // listUsers doesn't support server-side email filter, so we fetch and search.
   // For small user bases this is fine; increase perPage if needed.
@@ -83,7 +94,7 @@ export async function POST(request: Request) {
       const { data: resetData, error: resetErr } = await adminSupabase.auth.admin.generateLink({
         type: 'recovery',
         email,
-        options: { redirectTo: `${siteUrl}/set-password` },
+        options: { redirectTo },
       })
       if (resetErr) return NextResponse.json({ error: resetErr.message }, { status: 400 })
       await sendViaResend(email, 'Set your Command OS password', SET_PW_HTML(resetData.properties.action_link))
@@ -102,7 +113,7 @@ export async function POST(request: Request) {
   const { data: linkData, error: linkError } = await adminSupabase.auth.admin.generateLink({
     type: 'invite',
     email,
-    options: { redirectTo: `${siteUrl}/set-password` },
+    options: { redirectTo },
   })
 
   if (linkError) {
