@@ -45,6 +45,7 @@ export function GlobalNav() {
   const isActive = (href: string) => {
     if (href === '/dashboard') return pathname === '/dashboard'
     if (href === '/meetings') return pathname === '/meetings'
+    if (href === '/admin') return pathname.startsWith('/admin')
     return pathname.startsWith(href)
   }
 
@@ -52,7 +53,7 @@ export function GlobalNav() {
     { href: '/dashboard', label: 'Dashboard' },
     { href: '/events', label: 'Events' },
     { href: '/meetings', label: 'Meetings' },
-    ...(isAdminRole(profile?.role) ? [{ href: '/admin/people', label: 'People' }] : []),
+    ...(isAdminRole(profile?.role) ? [{ href: '/admin', label: 'Admin' }] : []),
   ]
 
   return (
