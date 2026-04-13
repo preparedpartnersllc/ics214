@@ -45,14 +45,22 @@ export default function SetPasswordPage() {
     }
 
     supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
-      .then(({ error }) => {
-        if (error) {
+      .then(async ({ data, error }) => {
+        if (error || !data.user) {
           setTokenError('This invite link has expired or already been used. Please ask an admin to resend your invite.')
-        } else {
-          // Clear hash from URL so the token isn't visible / reused
-          window.history.replaceState(null, '', window.location.pathname)
-          setReady(true)
+          return
         }
+        // Clear hash from URL so the token isn't visible / reused
+        window.history.replaceState(null, '', window.location.pathname)
+        // Ensure a profile row exists — the trigger may have failed if this
+        // invite was created before the trigger fix. Upsert is a no-op when
+        // the row already exists.
+        await supabase.from('profiles').upsert({
+          id: data.user.id,
+          email: data.user.email ?? '',
+          full_name: data.user.user_metadata?.full_name ?? '',
+        }, { onConflict: 'id', ignoreDuplicates: true })
+        setReady(true)
       })
   }, [])
 

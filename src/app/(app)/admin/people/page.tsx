@@ -43,6 +43,8 @@ export default function PeoplePage() {
   const [deleting,      setDeleting]      = useState(false)
   const [deleteError,   setDeleteError]   = useState<string | null>(null)
 
+  const [orphans, setOrphans] = useState<{ id: string; email: string; created_at: string }[]>([])
+
   useEffect(() => { load() }, [])
 
   async function load() {
@@ -50,6 +52,11 @@ export default function PeoplePage() {
     const { data } = await supabase.from('profiles').select('*').order('full_name')
     setProfiles(data ?? [])
     setLoading(false)
+    // Also fetch auth users with no profile (incomplete invites)
+    fetch('/api/admin/orphaned-users')
+      .then(r => r.json())
+      .then(d => setOrphans(d.orphans ?? []))
+      .catch(() => {})
   }
 
   async function sendInvite(userId: string, email: string) {
@@ -198,6 +205,7 @@ export default function PeoplePage() {
     })
     if (res.ok) {
       setProfiles(prev => prev.filter(p => p.id !== confirmDelete))
+      setOrphans(prev => prev.filter(o => o.id !== confirmDelete))
       setConfirmDelete(null)
     } else {
       const body = await res.json().catch(() => ({}))
@@ -316,6 +324,8 @@ export default function PeoplePage() {
       {/* ── Delete confirmation modal ── */}
       {confirmDelete && (() => {
         const person = profiles.find(p => p.id === confirmDelete)
+        const orphan = orphans.find(o => o.id === confirmDelete)
+        const displayName = person?.full_name || orphan?.email || 'this account'
         return (
           <div
             className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
@@ -327,7 +337,7 @@ export default function PeoplePage() {
             >
               <div>
                 <p className="text-xs text-[#EF4444] font-mono uppercase tracking-wider mb-1">Delete Account</p>
-                <p className="text-base font-semibold text-[#E5E7EB]">{person?.full_name}</p>
+                <p className="text-base font-semibold text-[#E5E7EB]">{displayName}</p>
                 <p className="text-xs text-[#9CA3AF] mt-1">
                   This permanently deletes the account and all associated data. This cannot be undone.
                 </p>
@@ -445,6 +455,31 @@ export default function PeoplePage() {
             onChange={e => setSearch(e.target.value)}
           />
         </div>
+
+        {/* Orphaned invites — auth users with no profile row */}
+        {orphans.length > 0 && (
+          <div className="mb-4 rounded-xl border border-yellow-500/30 bg-yellow-500/5 p-3">
+            <p className="text-xs font-bold uppercase tracking-wide text-yellow-400 mb-2">
+              Incomplete invites ({orphans.length})
+            </p>
+            <p className="text-xs text-[#9CA3AF] mb-3">
+              These accounts accepted an invite but have no profile. Delete and re-invite them.
+            </p>
+            <div className="space-y-1">
+              {orphans.map(o => (
+                <div key={o.id} className="flex items-center justify-between gap-3 rounded-lg bg-[#0B0F14] px-3 py-2">
+                  <span className="text-sm text-[#E5E7EB] truncate">{o.email}</span>
+                  <button
+                    onClick={() => setConfirmDelete(o.id)}
+                    className="shrink-0 text-xs font-semibold text-red-400 hover:text-red-300 transition-colors"
+                  >
+                    Delete
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Count */}
         <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide mb-3">
