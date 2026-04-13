@@ -34,11 +34,19 @@ export async function POST(request: Request) {
   // Delete profile row first (in case FK isn't CASCADE)
   await admin.from('profiles').delete().eq('id', userId)
 
-  // Delete the auth user
+  // Delete the auth user — treat "user not found" as success since the
+  // profile is already gone; the accounts are just out of sync.
   const { error } = await admin.auth.admin.deleteUser(userId)
   if (error) {
-    console.error('[delete-account]', error.message)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    const notFound =
+      error.message.toLowerCase().includes('not found') ||
+      error.message.toLowerCase().includes('does not exist') ||
+      (error as any).status === 404
+    if (!notFound) {
+      console.error('[delete-account]', error.message)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+    // Auth user was already gone — profile cleanup above is sufficient
   }
 
   return NextResponse.json({ success: true })
