@@ -9,7 +9,7 @@ export const registerSchema = z.object({
   full_name: z.string().min(2, 'Enter your full name'),
   email: z.string().email('Enter a valid email'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
-  default_agency: z.string().optional(),
+  default_agency: z.string().min(1, 'Select your agency'),
   default_unit: z.string().optional(),
   timezone: z.string().optional(),
 })

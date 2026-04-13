@@ -70,7 +70,6 @@ export default function ProfilePage() {
         full_name:        fullName,
         phone:            phone || null,
         phone_normalized: phoneNormalized,
-        default_agency:   agency || null,
         default_unit:     unit || null,
         timezone,
         last_active_at:   new Date().toISOString(),
@@ -166,11 +165,19 @@ export default function ProfilePage() {
             </p>
           </div>
 
-          <FormField label="Home Agency">
-            <input type="text" className="input" value={agency}
-              placeholder="e.g. Detroit Fire Department"
-              onChange={e => setAgency(e.target.value)} />
-          </FormField>
+          <div>
+            <p className="text-xs font-medium text-[#9CA3AF] mb-1.5 uppercase tracking-wide">Home Agency</p>
+            {agency ? (
+              <div className="input flex items-center justify-between opacity-70 cursor-not-allowed select-none">
+                <span className="text-[#E5E7EB]">{agency}</span>
+                <span className="text-xs text-[#6B7280]">Contact admin to change</span>
+              </div>
+            ) : (
+              <div className="input text-[#6B7280] opacity-70 cursor-not-allowed">
+                No agency assigned — contact your administrator
+              </div>
+            )}
+          </div>
 
           <FormField label="Unit">
             <input type="text" className="input" value={unit}

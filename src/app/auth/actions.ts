@@ -16,7 +16,7 @@ export async function login(formData: { email: string; password: string }) {
 
   if (profile?.is_active === false) {
     await supabase.auth.signOut()
-    return { error: 'This account has been deactivated. Contact your administrator.' }
+    return { error: 'Your account is pending administrator approval. You will be notified once access is granted.' }
   }
 
   // Admin set a temporary password — force them to choose their own before continuing
@@ -100,6 +100,8 @@ export async function register(formData: {
     default_agency: formData.default_agency ?? null,
     default_unit: formData.default_unit ?? null,
     timezone: formData.timezone ?? 'America/Detroit',
+    // Self-registered users start inactive until an admin approves them
+    is_active: false,
   }).eq('id', data.user.id)
 
   if (profileErr) {
