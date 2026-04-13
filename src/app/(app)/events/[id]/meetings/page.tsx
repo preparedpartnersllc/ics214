@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { isAdminRole } from '@/lib/roles'
 import { formatICSDateTime } from '@/lib/utils'
 import { getPositionLabel } from '@/lib/ics-positions'
 import type { EventMeeting, MeetingRsvpStatus } from '@/types'
@@ -101,7 +102,7 @@ export default function MeetingsPage() {
   const [fSaving,   setFSaving]   = useState(false)
   const [fError,    setFError]    = useState<string | null>(null)
 
-  const isAdmin = profile?.role === 'admin'
+  const isAdmin = isAdminRole(profile?.role)
 
   // Countdown ticker
   useEffect(() => {
@@ -134,7 +135,7 @@ export default function MeetingsPage() {
 
     // Filter by invite for non-admins
     let visibleMeetings: EventMeeting[]
-    if (p?.role !== 'admin') {
+    if (!isAdminRole(p?.role)) {
       const { data: invites } = await supabase
         .from('meeting_invitees').select('meeting_id').eq('user_id', user.id)
       const ids = new Set((invites ?? []).map((i: any) => i.meeting_id))
@@ -160,7 +161,7 @@ export default function MeetingsPage() {
       const { data: rsvpData } = await supabase
         .from('meeting_rsvps').select('meeting_id, user_id, status').in('meeting_id', mids)
 
-      if (p?.role !== 'admin') {
+      if (!isAdminRole(p?.role)) {
         const myMap: Record<string, MeetingRsvpStatus> = {}
         for (const r of (rsvpData ?? []).filter((r: any) => r.user_id === user.id)) {
           myMap[r.meeting_id] = r.status as MeetingRsvpStatus
@@ -177,7 +178,7 @@ export default function MeetingsPage() {
     }
 
     // Participants (admin only — for invitee selector)
-    if (p?.role === 'admin') {
+    if (isAdminRole(p?.role)) {
       const { data: ops } = await supabase
         .from('operational_periods').select('id').eq('event_id', id)
       const opIds = (ops ?? []).map((o: any) => o.id)

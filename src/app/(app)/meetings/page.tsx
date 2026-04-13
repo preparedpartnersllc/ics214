@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { formatICSDateTime } from '@/lib/utils'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { isAdminRole } from '@/lib/roles'
 
 type MeetingStatus = 'upcoming' | 'starting_soon' | 'in_progress' | 'completed'
 
@@ -65,7 +66,7 @@ export default function MeetingsPage() {
       if (!user) return
 
       const { data: p } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-      const admin = p?.role === 'admin'
+      const admin = isAdminRole(p?.role)
       setIsAdmin(admin)
 
       // Fetch all events the user can see

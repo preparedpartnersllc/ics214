@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { isAdminRole } from '@/lib/roles'
 import type { MapMarker, MapMarkerType, EventBoundary, BoundaryShape, BoundaryZoneType } from '@/types'
 import type { UserLocationPin } from '@/components/EventMap'
 
@@ -118,7 +119,7 @@ export default function MapPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchOpen,  setSearchOpen]  = useState(false)
 
-  const isAdmin = profile?.role === 'admin'
+  const isAdmin = isAdminRole(profile?.role)
 
   // ── Derived: search results ──────────────────────────────
   const searchResults = useMemo(() => {

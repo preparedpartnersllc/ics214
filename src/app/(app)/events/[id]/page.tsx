@@ -9,6 +9,7 @@ import Link from 'next/link'
 import type { EventMeeting } from '@/types'
 import { activityStatus, STATUS_DOT_COLOR, fetchLastEntryMap, type LastEntryMap } from '@/lib/accountability'
 import { badgeColorForPosition } from '@/lib/section-colors'
+import { isAdminRole } from '@/lib/roles'
 
 function buildCountdown(startIso: string, endIso: string): { label: string; color: string } {
   const now   = Date.now()
@@ -180,7 +181,7 @@ export default function EventDetailPage() {
     }
 
     // Load meetings this user is invited to (or all if admin)
-    await loadMeetings(user.id, p?.role === 'admin')
+    await loadMeetings(user.id, isAdminRole(p?.role))
 
     // Load unread notification count + first unread for invite toast
     const { data: unreadNotifs } = await supabase
@@ -434,7 +435,7 @@ export default function EventDetailPage() {
     ? profileMap[supervisorAssignment.user_id] ?? null
     : null
 
-  const isAdmin = profile?.role === 'admin'
+  const isAdmin = isAdminRole(profile?.role)
   const canManage = isAdmin || profile?.role === 'supervisor'
 
   const pendingDemobRequests = demobRequests.filter((r: any) => r.status === 'pending')

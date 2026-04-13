@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { isAdminRole } from '@/lib/roles'
 
 // GET /api/admin/orphaned-users
 // Returns two sets of broken accounts:
@@ -14,7 +15,7 @@ export async function GET() {
 
   const { data: callerProfile } = await supabase
     .from('profiles').select('role').eq('id', user.id).single()
-  if (!callerProfile || callerProfile.role !== 'admin') {
+  if (!callerProfile || !isAdminRole(callerProfile.role)) {
     return new NextResponse('Forbidden', { status: 403 })
   }
 

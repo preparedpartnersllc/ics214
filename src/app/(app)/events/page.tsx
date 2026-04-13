@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { EventsClient } from './_components/EventsClient'
+import { isAdminRole, isPrivilegedRole } from '@/lib/roles'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +17,7 @@ export default async function EventsPage() {
 
   let events: any[] = []
 
-  if (profile.role === 'admin' || profile.role === 'supervisor') {
+  if (isPrivilegedRole(profile.role)) {
     const { data } = await supabase
       .from('events')
       .select('*')
@@ -54,7 +55,7 @@ export default async function EventsPage() {
         .order('period_number', { ascending: true })
     : { data: [] }
 
-  const isAdmin  = profile.role === 'admin'
+  const isAdmin  = isAdminRole(profile.role)
   const isMember = profile.role === 'member'
 
   return (

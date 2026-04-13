@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { logout } from '@/app/auth/actions'
 import { NotificationBell } from '@/components/NotificationBell'
+import { isAdminRole, isSuperAdmin, roleLabel } from '@/lib/roles'
 
 export function GlobalNav() {
   const pathname = usePathname()
@@ -51,7 +52,7 @@ export function GlobalNav() {
     { href: '/dashboard', label: 'Dashboard' },
     { href: '/events', label: 'Events' },
     { href: '/meetings', label: 'Meetings' },
-    ...(profile?.role === 'admin' ? [{ href: '/admin/people', label: 'People' }] : []),
+    ...(isAdminRole(profile?.role) ? [{ href: '/admin/people', label: 'People' }] : []),
   ]
 
   return (

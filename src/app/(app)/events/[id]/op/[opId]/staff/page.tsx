@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { isAdminRole } from '@/lib/roles'
 import { getInitials } from '@/lib/utils'
 import {
   getPositionLabel,
@@ -156,7 +157,7 @@ export default function StaffPage() {
     setProfileMap((pData ?? []).reduce((acc: any, p: any) => { acc[p.id] = p; return acc }, {}))
     if (user) {
       const myProfile = (pData ?? []).find((p: any) => p.id === user.id)
-      setIsAdmin(myProfile?.role === 'admin')
+      setIsAdmin(isAdminRole(myProfile?.role))
     }
     setAssignments(aData ?? [])
     setDivisions(divData ?? [])

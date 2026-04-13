@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { isAdminRole, isPrivilegedRole } from '@/lib/roles'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,12 +14,12 @@ export default async function DashboardPage() {
     .from('profiles').select('*').eq('id', user.id).single()
   if (!profile) redirect('/login')
 
-  const isAdmin = profile.role === 'admin'
+  const isAdmin = isAdminRole(profile.role)
   const isMember = profile.role === 'member'
 
   // Events for this user
   let events: any[] = []
-  if (profile.role === 'admin' || profile.role === 'supervisor') {
+  if (isPrivilegedRole(profile.role)) {
     const { data } = await supabase
       .from('events')
       .select('*')
@@ -57,7 +58,7 @@ export default async function DashboardPage() {
           <h1 className="text-2xl font-semibold text-[#E5E7EB] tracking-tight leading-tight">
             {profile.full_name}
           </h1>
-          <p className="text-sm text-[#6B7280] mt-1 capitalize">{profile.role}</p>
+          <p className="text-sm text-[#6B7280] mt-1">{roleLabel(profile.role)}</p>
         </div>
 
         {/* ── 2 · PRIMARY ACTION (admin only) ─────────────────── */}

@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { sendSMS } from '@/lib/sms'
 import { normalizePhone } from '@/lib/phone'
+import { isAdminRole } from '@/lib/roles'
 
 // POST /api/admin/sms-invite
 //
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
 
   const { data: callerProfile } = await supabase
     .from('profiles').select('role').eq('id', user.id).single()
-  if (!callerProfile || callerProfile.role !== 'admin') {
+  if (!callerProfile || !isAdminRole(callerProfile.role)) {
     return new NextResponse('Forbidden', { status: 403 })
   }
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { isAdminRole } from '@/lib/roles'
 
 const INVITE_HTML = (link: string) => `
 <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#0B0F14;color:#E5E7EB;border-radius:12px">
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
 
   const { data: profile } = await supabase
     .from('profiles').select('role').eq('id', user.id).single()
-  if (!profile || profile.role !== 'admin') {
+  if (!profile || !isAdminRole(profile.role)) {
     return new NextResponse('Forbidden', { status: 403 })
   }
 

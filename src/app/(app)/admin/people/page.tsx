@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { getInitials } from '@/lib/utils'
 import Link from 'next/link'
+import { isSuperAdmin, roleLabel } from '@/lib/roles'
 
 export default function PeoplePage() {
   const [profiles,         setProfiles]         = useState<any[]>([])
@@ -533,15 +534,21 @@ export default function PeoplePage() {
                     </p>
                   </div>
 
-                  <select
-                    value={p.role}
-                    onChange={e => updateRole(p.id, e.target.value)}
-                    className="text-xs bg-[#121821] border border-[#232B36] text-[#9CA3AF] rounded-lg px-2 py-1.5 flex-shrink-0 focus:outline-none focus:border-[#FF5A1F] transition-colors"
-                  >
-                    <option value="member">Member</option>
-                    <option value="supervisor">Supervisor</option>
-                    <option value="admin">Admin</option>
-                  </select>
+                  {isSuperAdmin(p.role) ? (
+                    <span className="text-xs font-bold text-[#FF5A1F] bg-[#FF5A1F]/10 border border-[#FF5A1F]/30 rounded-lg px-2 py-1.5 flex-shrink-0">
+                      Super Admin
+                    </span>
+                  ) : (
+                    <select
+                      value={p.role}
+                      onChange={e => updateRole(p.id, e.target.value)}
+                      className="text-xs bg-[#121821] border border-[#232B36] text-[#9CA3AF] rounded-lg px-2 py-1.5 flex-shrink-0 focus:outline-none focus:border-[#FF5A1F] transition-colors"
+                    >
+                      <option value="member">Member</option>
+                      <option value="supervisor">Supervisor</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  )}
                 </div>
 
                 {/* Detail row */}
@@ -654,13 +661,15 @@ export default function PeoplePage() {
                     </span>
                   )}
 
-                  {/* Delete — far right, destructive */}
-                  <button
-                    onClick={() => { setConfirmDelete(p.id); setDeleteError(null) }}
-                    className="text-xs px-3 py-1.5 rounded-lg border border-transparent text-[#EF4444]/50 hover:text-[#EF4444] hover:border-[#EF4444]/25 hover:bg-[#EF4444]/5 transition-colors ml-auto"
-                  >
-                    Delete
-                  </button>
+                  {/* Delete — far right, destructive. Hidden for super_admin. */}
+                  {!isSuperAdmin(p.role) && (
+                    <button
+                      onClick={() => { setConfirmDelete(p.id); setDeleteError(null) }}
+                      className="text-xs px-3 py-1.5 rounded-lg border border-transparent text-[#EF4444]/50 hover:text-[#EF4444] hover:border-[#EF4444]/25 hover:bg-[#EF4444]/5 transition-colors ml-auto"
+                    >
+                      Delete
+                    </button>
+                  )}
                 </div>
               </div>
             )

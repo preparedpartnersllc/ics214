@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { isPrivilegedRole } from '@/lib/roles'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -116,7 +117,7 @@ export function NotificationBell({ userId }: { userId: string }) {
     const { data: prof } = await supabase
       .from('profiles').select('role').eq('id', userId).single()
 
-    if (prof?.role === 'admin' || prof?.role === 'supervisor') {
+    if (isPrivilegedRole(prof?.role)) {
       const { data: evts } = await supabase
         .from('events').select('id').eq('status', 'active')
       alertEventIds = (evts ?? []).map((e: any) => e.id)
