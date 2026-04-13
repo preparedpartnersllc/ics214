@@ -38,6 +38,11 @@ export default function PeoplePage() {
   const [smsResults,   setSmsResults]   = useState<Record<string, 'sent' | 'error'>>({})
   const [smsErrors,    setSmsErrors]    = useState<Record<string, string>>({})
 
+  // Delete account state
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [deleting,      setDeleting]      = useState(false)
+  const [deleteError,   setDeleteError]   = useState<string | null>(null)
+
   useEffect(() => { load() }, [])
 
   async function load() {
@@ -181,6 +186,26 @@ export default function PeoplePage() {
     setSmsInviting(null)
   }
 
+  // ── Delete account ───────────────────────────────────────────────
+  async function deleteAccount() {
+    if (!confirmDelete) return
+    setDeleting(true)
+    setDeleteError(null)
+    const res = await fetch('/api/admin/delete-account', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: confirmDelete }),
+    })
+    if (res.ok) {
+      setProfiles(prev => prev.filter(p => p.id !== confirmDelete))
+      setConfirmDelete(null)
+    } else {
+      const body = await res.json().catch(() => ({}))
+      setDeleteError(body.error ?? 'Failed to delete account')
+    }
+    setDeleting(false)
+  }
+
   // ── Force reset (flag only, no password change) ─────────────────
   async function forceReset(userId: string) {
     setForcingReset(userId)
@@ -283,6 +308,49 @@ export default function PeoplePage() {
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* ── Delete confirmation modal ── */}
+      {confirmDelete && (() => {
+        const person = profiles.find(p => p.id === confirmDelete)
+        return (
+          <div
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
+            onClick={() => { if (!deleting) { setConfirmDelete(null); setDeleteError(null) } }}
+          >
+            <div
+              className="bg-[#161D26] border border-[#EF4444]/30 rounded-2xl w-full max-w-sm p-5 space-y-4"
+              onClick={e => e.stopPropagation()}
+            >
+              <div>
+                <p className="text-xs text-[#EF4444] font-mono uppercase tracking-wider mb-1">Delete Account</p>
+                <p className="text-base font-semibold text-[#E5E7EB]">{person?.full_name}</p>
+                <p className="text-xs text-[#9CA3AF] mt-1">
+                  This permanently deletes the account and all associated data. This cannot be undone.
+                </p>
+              </div>
+              {deleteError && (
+                <p className="text-xs text-[#EF4444] bg-[#EF4444]/5 border border-[#EF4444]/20 rounded-lg px-3 py-2">{deleteError}</p>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={deleteAccount}
+                  disabled={deleting}
+                  className="flex-1 text-sm px-4 py-2 rounded-xl bg-[#EF4444] text-white font-semibold hover:bg-red-400 disabled:opacity-50 transition-colors"
+                >
+                  {deleting ? 'Deleting…' : 'Delete account'}
+                </button>
+                <button
+                  onClick={() => { setConfirmDelete(null); setDeleteError(null) }}
+                  disabled={deleting}
+                  className="text-sm px-4 py-2 rounded-xl border border-[#232B36] text-[#9CA3AF] hover:bg-[#121821] disabled:opacity-50 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         )
@@ -550,6 +618,14 @@ export default function PeoplePage() {
                       Active {new Date(p.last_active_at).toLocaleDateString()}
                     </span>
                   )}
+
+                  {/* Delete — far right, destructive */}
+                  <button
+                    onClick={() => { setConfirmDelete(p.id); setDeleteError(null) }}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-transparent text-[#EF4444]/50 hover:text-[#EF4444] hover:border-[#EF4444]/25 hover:bg-[#EF4444]/5 transition-colors ml-auto"
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
             )

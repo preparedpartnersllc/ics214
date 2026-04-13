@@ -939,11 +939,13 @@ export default function EventDetailPage() {
                         const phoneNormalized = p?.phone_normalized ?? null
                         const status = activityStatus(a.user_id, lastEntryMap)
                         return (
-                          <button
+                          <div
                             key={a.id}
-                            type="button"
+                            role="button"
+                            tabIndex={0}
                             onClick={() => setSelectedPerson({ assignment: a, prof: p })}
-                            className={`w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[#1a2235] transition-colors text-left border-t border-[#232B36]/40 ${isLast ? '' : ''}`}
+                            onKeyDown={e => e.key === 'Enter' && setSelectedPerson({ assignment: a, prof: p })}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[#1a2235] transition-colors cursor-pointer border-t border-[#232B36]/40"
                           >
                             {/* Status dot */}
                             <div
@@ -996,7 +998,7 @@ export default function EventDetailPage() {
                                 </svg>
                               </button>
                             </div>
-                          </button>
+                          </div>
                         )
                       })}
                       </div>{/* end animated body */}
