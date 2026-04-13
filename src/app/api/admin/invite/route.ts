@@ -13,6 +13,15 @@ const INVITE_HTML = (link: string) => `
 </div>
 `
 
+const SET_PW_HTML = (link: string) => `
+<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#0B0F14;color:#E5E7EB;border-radius:12px">
+  <p style="font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:#FF5A1F;margin:0 0 16px">Command OS</p>
+  <h1 style="font-size:22px;font-weight:700;color:#fff;margin:0 0 12px">Set your password</h1>
+  <p style="font-size:14px;color:#9CA3AF;line-height:1.6;margin:0 0 24px">An administrator has set up an account for you on Command OS. Click below to set your password and log in.</p>
+  <a href="${link}" style="display:inline-block;background:#FF5A1F;color:#fff;font-weight:700;font-size:14px;padding:12px 28px;border-radius:8px;text-decoration:none">Set Password</a>
+</div>
+`
+
 async function sendViaResend(to: string, subject: string, html: string) {
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
@@ -55,23 +64,41 @@ export async function POST(request: Request) {
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://ics214.com'
 
-  // Clean up any stale profile row for this email before creating the invite.
-  // This happens when a user was previously deleted: their auth user is gone but
-  // a profile row may remain, causing the handle_new_user trigger to conflict.
-  const { data: staleProfile } = await adminSupabase
-    .from('profiles')
-    .select('id')
-    .eq('email', email)
-    .maybeSingle()
-  if (staleProfile) {
-    // Only remove it if there's no live auth user backing it
-    const { data: authUser } = await adminSupabase.auth.admin.getUserById(staleProfile.id)
-    if (!authUser?.user) {
-      await adminSupabase.from('profiles').delete().eq('id', staleProfile.id)
+  // --- Step 1: Check for any existing auth user with this email ---
+  // listUsers doesn't support server-side email filter, so we fetch and search.
+  // For small user bases this is fine; increase perPage if needed.
+  const { data: listData } = await adminSupabase.auth.admin.listUsers({ page: 1, perPage: 1000 })
+  const existingAuthUser = (listData?.users ?? []).find((u: any) => u.email === email)
+
+  if (existingAuthUser) {
+    // Check whether this person has an active profile (i.e. they're a real, live user)
+    const { data: existingProfile } = await adminSupabase
+      .from('profiles')
+      .select('is_active')
+      .eq('id', existingAuthUser.id)
+      .maybeSingle()
+
+    if (existingProfile?.is_active) {
+      // Active user — send a "set password" recovery link instead
+      const { data: resetData, error: resetErr } = await adminSupabase.auth.admin.generateLink({
+        type: 'recovery',
+        email,
+        options: { redirectTo: `${siteUrl}/set-password` },
+      })
+      if (resetErr) return NextResponse.json({ error: resetErr.message }, { status: 400 })
+      await sendViaResend(email, 'Set your Command OS password', SET_PW_HTML(resetData.properties.action_link))
+      return NextResponse.json({ success: true })
     }
+
+    // Stale / soft-deleted / unconfirmed auth user — hard delete so we can re-invite clean
+    await adminSupabase.auth.admin.deleteUser(existingAuthUser.id)
   }
 
-  // Generate the invite link without relying on Supabase SMTP
+  // --- Step 2: Remove any stale profile row for this email ---
+  // Handles the case where a profile exists with a different (or deleted) auth user ID.
+  await adminSupabase.from('profiles').delete().eq('email', email)
+
+  // --- Step 3: Create a fresh invite ---
   const { data: linkData, error: linkError } = await adminSupabase.auth.admin.generateLink({
     type: 'invite',
     email,
@@ -79,40 +106,9 @@ export async function POST(request: Request) {
   })
 
   if (linkError) {
-    // User already exists — send a password reset link instead
-    const alreadyExists =
-      linkError.message.toLowerCase().includes('already') ||
-      linkError.message.toLowerCase().includes('registered')
-
-    if (alreadyExists) {
-      const { data: resetData, error: resetLinkError } = await adminSupabase.auth.admin.generateLink({
-        type: 'recovery',
-        email,
-        options: { redirectTo: `${siteUrl}/set-password` },
-      })
-      if (resetLinkError) return NextResponse.json({ error: resetLinkError.message }, { status: 400 })
-
-      await sendViaResend(
-        email,
-        'Reset your Command OS password',
-        `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#0B0F14;color:#E5E7EB;border-radius:12px">
-          <p style="font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:#FF5A1F;margin:0 0 16px">Command OS</p>
-          <h1 style="font-size:22px;font-weight:700;color:#fff;margin:0 0 12px">Set your password</h1>
-          <p style="font-size:14px;color:#9CA3AF;line-height:1.6;margin:0 0 24px">An administrator has set up an account for you on Command OS. Click below to set your password and log in.</p>
-          <a href="${resetData.properties.action_link}" style="display:inline-block;background:#FF5A1F;color:#fff;font-weight:700;font-size:14px;padding:12px 28px;border-radius:8px;text-decoration:none">Set Password</a>
-        </div>`
-      )
-      return NextResponse.json({ success: true })
-    }
-
     return NextResponse.json({ error: linkError.message }, { status: 400 })
   }
 
-  await sendViaResend(
-    email,
-    'You have been invited to Command OS',
-    INVITE_HTML(linkData.properties.action_link)
-  )
-
+  await sendViaResend(email, 'You have been invited to Command OS', INVITE_HTML(linkData.properties.action_link))
   return NextResponse.json({ success: true })
 }
